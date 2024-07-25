@@ -1,0 +1,55 @@
+module.exports = {
+  apps: [
+    {
+      name: "collector",
+      script: "lib/collector.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      max_restarts: 5,
+      restart_delay: 5000,
+      min_uptime: 10000,
+      env: {
+        NODE_ENV: "production",
+        NODE_APP_INSTANCE: "collector",
+        INSTANCE_NUM: 0,
+      },
+    },
+    {
+      name: "worker",
+      script: "lib/worker.js",
+      instances: 2,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      max_restarts: 5,
+      restart_delay: 5000,
+      min_uptime: 10000,
+      increment_var: "INSTANCE_NUM",
+      env: {
+        NODE_ENV: "production",
+        NODE_APP_INSTANCE: "worker",
+        INSTANCE_NUM: 0,
+      },
+    },
+    {
+      name: "bidder",
+      script: "lib/bidder.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      max_restarts: 5,
+      restart_delay: 5000,
+      min_uptime: 10000,
+      env: {
+        NODE_ENV: "production",
+        NODE_APP_INSTANCE: "bidder",
+        INSTANCE_NUM: 0,
+      },
+    },
+  ],
+  // Load environment variables from .env file
+  env_file: ".env",
+};

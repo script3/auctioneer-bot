@@ -1,0 +1,27 @@
+{
+  "name": "auctioneer-bot",
+  "version": "0.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "author": "gm@script3.io",
+  "license": "MIT",
+  "description": "A bot that creates and bids on auctions for a Blend pool",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "dotenv": "^16.4.5",
+    "sqlite3": "^5.1.7",
+    "winston": "^3.13.1",
+    "winston-daily-rotate-file": "^5.0.0"
+  }
+}
