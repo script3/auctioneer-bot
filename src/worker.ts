@@ -1,7 +1,12 @@
+import { Network } from "@blend-capital/blend-sdk";
 import { Channel, connect, ConsumeMessage } from "amqplib";
 import { config } from "dotenv";
 import { AUCTION_QUEUE_KEY, WORK_QUEUE_KEY } from "./constants.js";
-import { logger } from "./logger.js";
+import { BlendHelper } from "./utils/blend_helper.js";
+import { AuctioneerDatabase } from "./utils/db.js";
+import { logger } from "./utils/logger.js";
+import { WorkHandler } from "./work_handler.js";
+
 config();
 
 async function main() {
@@ -15,18 +20,34 @@ async function main() {
     WORK_QUEUE_KEY,
     async (msg) => {
       if (msg !== null) {
+        let db: AuctioneerDatabase | undefined = undefined;
         try {
+          const timer = Date.now();
           logger.info(
             `Processing: ${WORK_QUEUE_KEY} ${msg.content.toString()}`
           );
-          await processMessage(msg, channel);
+          db = AuctioneerDatabase.connect();
+          let network: Network = {
+            rpc: "http://localhost:8000/soroban/rpc",
+            passphrase: "Test SDF Network ; September 2015",
+          };
+          const blendHelper = new BlendHelper(network);
+          const eventHandler = new WorkHandler(db, blendHelper, channel);
+          await eventHandler.processEvent(msg.content.toString());
           logger.info(
-            `Succesfully processed: ${WORK_QUEUE_KEY} ${msg.content.toString()}`
+            `Succesfully processed: ${WORK_QUEUE_KEY} ${msg.content.toString()} in ${Date.now() - timer}ms`
           );
           channel.ack(msg, false);
         } catch (err) {
-          logger.error(`Error in worker`, err);
+          logger.error(
+            `Error in worker for ${WORK_QUEUE_KEY} ${msg.content.toString()}`,
+            err
+          );
           channel.nack(msg, false, true);
+        } finally {
+          if (db) {
+            db.close();
+          }
         }
       }
     },

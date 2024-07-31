@@ -1,8 +1,12 @@
-import { connect, ConsumeMessage } from "amqplib";
+import { Network } from "@blend-capital/blend-sdk";
+import { connect } from "amqplib";
 import { config } from "dotenv";
+import { AuctionHandler } from "./auction_handler.js";
 import { AUCTION_QUEUE_KEY } from "./constants.js";
-import { connectToDb } from "./db.js";
-import { logger } from "./logger.js";
+import { BlendHelper } from "./utils/blend_helper.js";
+import { AuctioneerDatabase } from "./utils/db.js";
+import { logger } from "./utils/logger.js";
+
 config();
 
 async function main() {
@@ -15,13 +19,22 @@ async function main() {
     AUCTION_QUEUE_KEY,
     async (msg) => {
       if (msg !== null) {
+        let db: AuctioneerDatabase | undefined = undefined;
         try {
+          const timer = Date.now();
           logger.info(
             `Processing: ${AUCTION_QUEUE_KEY} ${msg.content.toString()}`
           );
-          await processMessage(msg);
+          db = AuctioneerDatabase.connect();
+          let network: Network = {
+            rpc: "http://localhost:8000/soroban/rpc",
+            passphrase: "Test SDF Network ; September 2015",
+          };
+          const blendHelper = new BlendHelper(network);
+          const eventHandler = new AuctionHandler(db, blendHelper);
+          await eventHandler.processEvent(msg.content.toString());
           logger.info(
-            `Succesfully processed: ${AUCTION_QUEUE_KEY} ${msg.content.toString()}`
+            `Succesfully processed: ${AUCTION_QUEUE_KEY} ${msg.content.toString()} in ${Date.now() - timer}ms`
           );
           channel.ack(msg, false);
         } catch (err) {
@@ -30,6 +43,10 @@ async function main() {
             err
           );
           channel.nack(msg, false, true);
+        } finally {
+          if (db) {
+            db.close();
+          }
         }
       }
     },
@@ -38,26 +55,6 @@ async function main() {
       noAck: false,
     }
   );
-}
-
-async function processMessage(msg: ConsumeMessage) {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  if (Math.random() < 0.2) {
-    const db = connectToDb();
-    db.run(
-      "INSERT INTO transactions (timestamp) VALUES (?)",
-      [new Date().toISOString()],
-      (err) => {
-        if (err) {
-          logger.error(`Error inserting transaction`, err);
-        } else {
-          logger.info(`Submitted transaction to network`);
-        }
-      }
-    );
-    db.close();
-  }
 }
 
 main().catch(console.error);

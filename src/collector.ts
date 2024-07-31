@@ -1,7 +1,7 @@
 import { connect } from "amqplib";
 import { config } from "dotenv";
 import { WORK_QUEUE_KEY } from "./constants.js";
-import { logger } from "./logger.js";
+import { logger } from "./utils/logger.js";
 config();
 
 async function main() {

@@ -14,13 +14,16 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.5",
+    "@types/better-sqlite3": "^7.6.11",
     "prettier": "^3.3.3",
     "typescript": "^5.5.4"
   },
   "dependencies": {
+    "@blend-capital/blend-sdk": "^1.2.0",
+    "@stellar/stellar-sdk": "^12.2.0",
     "amqplib": "^0.10.4",
+    "better-sqlite3": "^11.1.2",
     "dotenv": "^16.4.5",
-    "sqlite3": "^5.1.7",
     "winston": "^3.13.1",
     "winston-daily-rotate-file": "^5.0.0"
   }
