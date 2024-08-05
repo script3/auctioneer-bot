@@ -5,14 +5,14 @@ The auctioneer bot monitors a Blend pool to create and bid on auctions. This inc
 
 The auctioneer is packaged into a single docker container. To build the image, run:
 
-```
-$ docker build -t auctioneer-bot .
+```bash
+npm run build:docker 
 ```
 
 To run the image, start with the following command:
 
-```
-$ docker run --restart always -d -p 5672:5672 -p 15672:15672 -v /path/on/host:/app/data auctioneer-bot
+```bash
+docker run --restart always -d -p 5672:5672 -p 15672:15672 -v /path/on/host:/app/data auctioneer-bot
 ```
 
 The ports `5672` and `15672` expose access to the internal RabbitMQ server running within the container. `5672` allows access to the queues and `15672` exposes management tools.
