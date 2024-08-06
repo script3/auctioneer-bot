@@ -1,16 +1,20 @@
-import { Network } from "@blend-capital/blend-sdk";
-import { connect } from "amqplib";
-import { config } from "dotenv";
-import { AuctionHandler } from "./auction_handler.js";
-import { AUCTION_QUEUE_KEY } from "./constants.js";
-import { BlendHelper } from "./utils/blend_helper.js";
-import { AuctioneerDatabase } from "./utils/db.js";
-import { logger } from "./utils/logger.js";
+import { Network } from '@blend-capital/blend-sdk';
+import { connect } from 'amqplib';
+import { config } from 'dotenv';
+import { AuctionHandler } from './auction_handler.js';
+import { AUCTION_QUEUE_KEY } from './constants.js';
+import { BlendHelper } from './utils/blend_helper.js';
+import { AuctioneerDatabase } from './utils/db.js';
+import { logger } from './utils/logger.js';
 
 config();
+const RPC_URL = process.env.RPC_URL as string;
+const PASSPHRASE = process.env.NETWORK_PASSPHRASE as string;
+const POOL_ADDRESS = process.env.POOL_ADDRESS as string;
+const BACKSTOP_ADDRESS = process.env.BACKSTOP_ADDRESS as string;
 
 async function main() {
-  const connection = await connect("amqp://localhost");
+  const connection = await connect('amqp://localhost');
   const channel = await connection.createChannel();
   await channel.assertQueue(AUCTION_QUEUE_KEY);
   logger.info(`Connected to ${AUCTION_QUEUE_KEY}`);
@@ -22,15 +26,16 @@ async function main() {
         let db: AuctioneerDatabase | undefined = undefined;
         try {
           const timer = Date.now();
-          logger.info(
-            `Processing: ${AUCTION_QUEUE_KEY} ${msg.content.toString()}`
-          );
+          logger.info(`Processing: ${AUCTION_QUEUE_KEY} ${msg.content.toString()}`);
           db = AuctioneerDatabase.connect();
           let network: Network = {
-            rpc: "http://localhost:8000/soroban/rpc",
-            passphrase: "Test SDF Network ; September 2015",
+            rpc: RPC_URL,
+            passphrase: PASSPHRASE,
+            opts: {
+              allowHttp: true,
+            },
           };
-          const blendHelper = new BlendHelper(network);
+          const blendHelper = new BlendHelper(network, POOL_ADDRESS, BACKSTOP_ADDRESS);
           const eventHandler = new AuctionHandler(db, blendHelper);
           await eventHandler.processEvent(msg.content.toString());
           logger.info(
@@ -38,10 +43,7 @@ async function main() {
           );
           channel.ack(msg, false);
         } catch (err) {
-          logger.error(
-            `Error in bidder for ${AUCTION_QUEUE_KEY} ${msg.content.toString()}`,
-            err
-          );
+          logger.error(`Error in bidder for ${AUCTION_QUEUE_KEY} ${msg.content.toString()}`, err);
           channel.nack(msg, false, true);
         } finally {
           if (db) {
