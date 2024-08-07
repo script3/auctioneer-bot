@@ -1,7 +1,7 @@
 import { PoolEvent } from '@blend-capital/blend-sdk';
 
 export enum EventType {
-  HEALTHCHECK = 'healthcheck',
+  LEDGER = 'ledger',
   PRICE_UPDATE = 'price_update',
   PRICE_SPIKE = 'price_spike',
   LIQ_SCAN = 'liq_scan',
@@ -11,7 +11,7 @@ export enum EventType {
 // ********* Shared **********
 
 export type AppEvent =
-  | HealthCheckEvent
+  | LedgerEvent
   | PriceUpdateEvent
   | PriceSpikeEvent
   | LiqScanEvent
@@ -26,11 +26,11 @@ export interface BaseEvent {
 }
 
 /**
- * Event for a health check to ensure the work queue is still processing events.
+ * Event for a ledger
  */
-export interface HealthCheckEvent extends BaseEvent {
-  type: EventType.HEALTHCHECK;
-  start_ledger: number;
+export interface LedgerEvent extends BaseEvent {
+  type: EventType.LEDGER;
+  ledger: number;
 }
 
 // ********** Work Queue Only **********

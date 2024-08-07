@@ -8,19 +8,16 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 -- Table to store the status of the different components of the application
 CREATE TABLE IF NOT EXISTS status (
-    name TEXT PRIMARY KEY,
+    name TEXT PRIMARY KEY NOT NULL,
     latest_ledger INTEGER NOT NULL
 );
 
 -- Table to store the user's that have positions in the pool
 CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY,
+    user_id TEXT PRIMARY KEY NOT NULL,
     health_factor REAL NOT NULL,
     collateral JSON NOT NULL,
     liabilities JSON,
     updated INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_health_factor ON users(health_factor);
-
--- Set WAL mode
-PRAGMA journal_mode = WAL;
