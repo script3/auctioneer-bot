@@ -1,6 +1,5 @@
-import { BlendHelper } from "./utils/blend_helper.js";
-import { AuctioneerDatabase } from "./utils/db.js";
-import { logger } from "./utils/logger.js";
+import { BlendHelper } from './utils/blend_helper.js';
+import { AuctioneerDatabase } from './utils/db.js';
 
 /**
  * Event handler for processing events on the auction queue.
@@ -24,12 +23,5 @@ export class AuctionHandler {
    */
   async processEvent(auction_event: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 500));
-
-    if (Math.random() < 0.2) {
-      this.db.insertTransaction(new Date().toISOString());
-      logger.info(
-        `Submitted transaction to network for event ${auction_event}`
-      );
-    }
   }
 }

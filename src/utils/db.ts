@@ -1,5 +1,6 @@
 import Database, { RunResult } from 'better-sqlite3';
 import { parse, stringify } from './json.js';
+import { logger } from './logger.js';
 
 export interface StatusEntry {
   // The name of the status entry
@@ -29,28 +30,22 @@ export class AuctioneerDatabase {
   }
 
   static connect(): AuctioneerDatabase {
-    let db = new Database('./data/auctioneer.sqlite');
-    db.pragma('journal_mode = WAL');
-    return new AuctioneerDatabase(db);
+    try {
+      let db = new Database('./data/auctioneer.sqlite', { fileMustExist: true });
+      return new AuctioneerDatabase(db);
+    } catch (error) {
+      logger.error(`Error connecting to database: ${error}`);
+      throw error;
+    }
   }
 
   close(): void {
-    this.db.close();
-  }
-
-  // @dev: Temp
-  insertTransaction(timestamp: string): number {
-    const run_result = this.db
-      .prepare('INSERT INTO transactions (timestamp) VALUES (?)')
-      .run(timestamp);
-    return run_result.lastInsertRowid as number;
-  }
-
-  // @dev: Temp
-  getTransaction(id: number): { id: number; timestamp: string } | undefined {
-    return this.db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as
-      | { id: number; timestamp: string }
-      | undefined;
+    try {
+      this.db.close();
+    } catch (error) {
+      logger.error(`Error closing database: ${error}`);
+      throw error;
+    }
   }
 
   //********** Status Table **********//
@@ -61,9 +56,14 @@ export class AuctioneerDatabase {
    * @returns The result of the sql operation
    */
   setStatusEntry(entry: StatusEntry): RunResult {
-    return this.db
-      .prepare('INSERT OR REPLACE INTO status (name, latest_ledger) VALUES (?, ?)')
-      .run(entry.name, entry.latest_ledger);
+    try {
+      return this.db
+        .prepare('INSERT OR REPLACE INTO status (name, latest_ledger) VALUES (?, ?)')
+        .run(entry.name, entry.latest_ledger);
+    } catch (error: any) {
+      logger.error(`Error setting status entry: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -72,9 +72,14 @@ export class AuctioneerDatabase {
    * @returns The status entry or undefined if it does not exist
    */
   getStatusEntry(name: string): StatusEntry | undefined {
-    return this.db.prepare('SELECT * FROM status WHERE name = ?').get(name) as
-      | StatusEntry
-      | undefined;
+    try {
+      return this.db.prepare('SELECT * FROM status WHERE name = ?').get(name) as
+        | StatusEntry
+        | undefined;
+    } catch (error: any) {
+      logger.error(`Error getting status entry: ${error}`);
+      throw error;
+    }
   }
 
   //********** User Table **********//
@@ -85,17 +90,22 @@ export class AuctioneerDatabase {
    * @returns The result of the sql operation
    */
   setUserEntry(entry: UserEntry): RunResult {
-    return this.db
-      .prepare(
-        'INSERT OR REPLACE INTO users (user_id, health_factor, collateral, liabilities, updated) VALUES (?, ?, ?, ?, ?)'
-      )
-      .run(
-        entry.user_id,
-        entry.health_factor,
-        stringify(entry.collateral),
-        stringify(entry.liabilities),
-        entry.updated
-      );
+    try {
+      return this.db
+        .prepare(
+          'INSERT OR REPLACE INTO users (user_id, health_factor, collateral, liabilities, updated) VALUES (?, ?, ?, ?, ?)'
+        )
+        .run(
+          entry.user_id,
+          entry.health_factor,
+          stringify(entry.collateral),
+          stringify(entry.liabilities),
+          entry.updated
+        );
+    } catch (error: any) {
+      logger.error(`Error setting user entry: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -104,7 +114,12 @@ export class AuctioneerDatabase {
    * @returns The result of the sql operation
    */
   deleteUserEntry(user_id: string): RunResult {
-    return this.db.prepare('DELETE FROM users WHERE user_id = ?').run(user_id);
+    try {
+      return this.db.prepare('DELETE FROM users WHERE user_id = ?').run(user_id);
+    } catch (error: any) {
+      logger.error(`Error deleting user entry: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -113,17 +128,22 @@ export class AuctioneerDatabase {
    * @returns The user entry or undefined if it does not exist
    */
   getUserEntry(user_id: string): UserEntry | undefined {
-    let entry: any = this.db.prepare('SELECT * FROM users WHERE user_id = ?').get(user_id);
-    if (entry) {
-      return {
-        user_id: entry.user_id,
-        health_factor: entry.balance,
-        collateral: parse<Map<string, bigint>>(entry.collateral),
-        liabilities: parse<Map<string, bigint>>(entry.liabilities),
-        updated: entry.updated,
-      } as UserEntry;
+    try {
+      let entry: any = this.db.prepare('SELECT * FROM users WHERE user_id = ?').get(user_id);
+      if (entry) {
+        return {
+          user_id: entry.user_id,
+          health_factor: entry.balance,
+          collateral: parse<Map<string, bigint>>(entry.collateral),
+          liabilities: parse<Map<string, bigint>>(entry.liabilities),
+          updated: entry.updated,
+        } as UserEntry;
+      }
+      return undefined;
+    } catch (error: any) {
+      logger.error(`Error getting user entry: ${error}`);
+      throw error;
     }
-    return undefined;
   }
 
   /**
@@ -132,18 +152,23 @@ export class AuctioneerDatabase {
    * @returns An array user entries, or an empty array if none are found
    */
   getUserEntriesUnderHealthFactor(health_factor: number): UserEntry[] {
-    let entries: any[] = this.db
-      .prepare('SELECT * FROM users WHERE health_factor < ?')
-      .all(health_factor);
-    return entries.map((entry) => {
-      return {
-        user_id: entry.user_id,
-        health_factor: entry.balance,
-        collateral: parse<Map<string, bigint>>(entry.collateral),
-        liabilities: parse<Map<string, bigint>>(entry.liabilities),
-        updated: entry.updated,
-      } as UserEntry;
-    });
+    try {
+      let entries: any[] = this.db
+        .prepare('SELECT * FROM users WHERE health_factor < ?')
+        .all(health_factor);
+      return entries.map((entry) => {
+        return {
+          user_id: entry.user_id,
+          health_factor: entry.balance,
+          collateral: parse<Map<string, bigint>>(entry.collateral),
+          liabilities: parse<Map<string, bigint>>(entry.liabilities),
+          updated: entry.updated,
+        } as UserEntry;
+      });
+    } catch (error: any) {
+      logger.error(`Error getting user entries under health factor: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -152,18 +177,23 @@ export class AuctioneerDatabase {
    * @returns An array user entries, or an empty array if none are found
    */
   getUserEntriesWithLiability(assetId: string): UserEntry[] {
-    let entries: any[] = this.db
-      .prepare('SELECT * FROM users WHERE json_extract(liabilities, ?) IS NOT NULL')
-      .all(`'$.value.${assetId}'`);
-    return entries.map((entry) => {
-      return {
-        user_id: entry.user_id,
-        health_factor: entry.balance,
-        collateral: parse<Map<string, bigint>>(entry.collateral),
-        liabilities: parse<Map<string, bigint>>(entry.liabilities),
-        updated: entry.updated,
-      } as UserEntry;
-    });
+    try {
+      let entries: any[] = this.db
+        .prepare('SELECT * FROM users WHERE json_extract(liabilities, ?) IS NOT NULL')
+        .all(`'$.value.${assetId}'`);
+      return entries.map((entry) => {
+        return {
+          user_id: entry.user_id,
+          health_factor: entry.balance,
+          collateral: parse<Map<string, bigint>>(entry.collateral),
+          liabilities: parse<Map<string, bigint>>(entry.liabilities),
+          updated: entry.updated,
+        } as UserEntry;
+      });
+    } catch (error: any) {
+      logger.error(`Error getting user entries with liability: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -172,17 +202,22 @@ export class AuctioneerDatabase {
    * @returns An array user entries, or an empty array if none are found
    */
   getUserEntriesWithCollateral(assetId: string): UserEntry[] {
-    let entries: any[] = this.db
-      .prepare('SELECT * FROM users WHERE json_extract(collateral, ?) IS NOT NULL')
-      .all(`'$.value.${assetId}'`);
-    return entries.map((entry) => {
-      return {
-        user_id: entry.user_id,
-        health_factor: entry.balance,
-        collateral: parse<Map<string, bigint>>(entry.collateral),
-        liabilities: parse<Map<string, bigint>>(entry.liabilities),
-        updated: entry.updated,
-      } as UserEntry;
-    });
+    try {
+      let entries: any[] = this.db
+        .prepare('SELECT * FROM users WHERE json_extract(collateral, ?) IS NOT NULL')
+        .all(`'$.value.${assetId}'`);
+      return entries.map((entry) => {
+        return {
+          user_id: entry.user_id,
+          health_factor: entry.balance,
+          collateral: parse<Map<string, bigint>>(entry.collateral),
+          liabilities: parse<Map<string, bigint>>(entry.liabilities),
+          updated: entry.updated,
+        } as UserEntry;
+      });
+    } catch (error: any) {
+      logger.error(`Error getting user entries with collateral: ${error}`);
+      throw error;
+    }
   }
 }
