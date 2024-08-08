@@ -1,5 +1,5 @@
 import { AppEvent, EventType } from './events.js';
-import { BlendHelper } from './utils/blend_helper.js';
+import { BlendHelper } from './utils/soroban_helper.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
