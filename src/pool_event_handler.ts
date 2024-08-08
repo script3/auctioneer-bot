@@ -1,6 +1,6 @@
 import { PoolEventType } from '@blend-capital/blend-sdk';
 import { PoolEventEvent } from './events.js';
-import { BlendHelper } from './utils/blend_helper.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
 import { AuctioneerDatabase, UserEntry } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
@@ -14,11 +14,11 @@ const RETRY_DELAY = 200;
  */
 export class PoolEventHandler {
   private db: AuctioneerDatabase;
-  private blendHelper: BlendHelper;
+  private sorobanHelper: SorobanHelper;
 
-  constructor(db: AuctioneerDatabase, blendHelper: BlendHelper) {
+  constructor(db: AuctioneerDatabase, sorobanHelper: SorobanHelper) {
     this.db = db;
-    this.blendHelper = blendHelper;
+    this.sorobanHelper = sorobanHelper;
   }
 
   /**
@@ -64,8 +64,8 @@ export class PoolEventHandler {
       case PoolEventType.Borrow:
       case PoolEventType.Repay: {
         // update the user in the db
-        const pool = await this.blendHelper.loadPool();
-        const user = await this.blendHelper.loadUser(pool, poolEvent.event.from);
+        const pool = await this.sorobanHelper.loadPool();
+        const user = await this.sorobanHelper.loadUser(pool, poolEvent.event.from);
         if (user.positions.liabilities.size !== 0) {
           // user has liabilities, update db entry
           let collateralAddress = new Map<string, bigint>();
