@@ -12,83 +12,97 @@ interface FillCalculation {
  *
  * @param filler - The filler to calculate the block fill for
  * @param auctionData - The auction data to calculate the block fill for
- * @param reserves - The reserves to use for the calculation
+ * @param prices - The prices of the assets in the auction
+ * @param sorobanHelper - The soroban helper to use for the calculation
  */
 export async function calculateBlockFillAndPercent(
   filler: Filler,
   auctionData: AuctionData,
-  reserves: Map<string, Reserve>,
+  prices: Map<string, number>,
   sorobanHelper: SorobanHelper
 ): Promise<FillCalculation> {
-  let totalEffectiveCollateral = 0;
-  let totalEffectiveLiabilities = 0;
+  // Represents the effective collateral and liabilities of the auction
+  let effectiveCollateral = 0;
+  let effectiveLiabilities = 0;
+  // Represents the value of the lot and bid
+  let lotValue = 0;
+  let bidValue = 0;
+  // Represents the value of the comet collateral and liabilities
   let cometCollateralValue = 0;
   let cometLiabilitiesValue = 0;
-  // Sum the effective collateral and liabilities
+  const reserves = (await sorobanHelper.loadPool()).reserves;
+
+  // Sum the effective collateral and liabilities and the value of the lot and bid
   for (const [assetId, amount] of auctionData.lot) {
-    let reserve = reserves.get(assetId);
+    const reserve = reserves.get(assetId);
     if (reserve !== undefined) {
-      totalEffectiveCollateral += Number(amount * reserve.data.bRate);
-    } else {
-      // If the reserve does not exist, the asset is blend lp tokens
+      effectiveCollateral += reserve.toEffectiveAssetFromBToken(amount) * reserve.oraclePrice;
+      lotValue += reserve.toAssetFromBToken(amount) * (prices.get(assetId) ?? 0);
+    } else if (assetId === sorobanHelper.cometId) {
       // Simulate singled sided withdraw to USDC
-      let backstopToken = await BackstopToken.load(
-        sorobanHelper.network,
-        sorobanHelper.cometId,
-        (await sorobanHelper.loadPool()).config.blndTkn,
-        sorobanHelper.usdcId
-      );
-      cometCollateralValue +=
-        (await sorobanHelper.simLPTokenToUSDC(Number(amount))) ??
-        (Number(amount) * backstopToken.usdcPerLpToken) / 1e7;
+      let lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      if (lpTokenValue !== undefined) {
+        cometCollateralValue += lpTokenValue;
+      }
+      // Approximate the value of the comet tokens if simulation fails
+      else {
+        let backstopToken = await BackstopToken.load(
+          sorobanHelper.network,
+          sorobanHelper.cometId,
+          (await sorobanHelper.loadPool()).config.blndTkn,
+          sorobanHelper.usdcId
+        );
+        cometCollateralValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
+      }
     }
   }
   for (const [assetId, amount] of auctionData.bid) {
     const reserve = reserves.get(assetId);
     if (reserve !== undefined) {
-      totalEffectiveLiabilities += Number(amount * reserve.data.dRate);
-    } else {
-      // If the reserve does not exist, the asset is blend lp tokens
+      effectiveLiabilities += reserve.toEffectiveAssetFromDToken(amount) * reserve.oraclePrice;
+      bidValue += reserve.toAssetFromDToken(amount) * (prices.get(assetId) ?? 0);
+    } else if (assetId === sorobanHelper.cometId) {
       // Simulate singled sided withdraw to USDC
-      let backstopToken = await BackstopToken.load(
-        sorobanHelper.network,
-        sorobanHelper.cometId,
-        (await sorobanHelper.loadPool()).config.blndTkn,
-        sorobanHelper.usdcId
-      );
-      cometCollateralValue +=
-        (await sorobanHelper.simLPTokenToUSDC(Number(amount))) ??
-        (Number(amount) * backstopToken.usdcPerLpToken) / 1e7;
+      let lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      if (lpTokenValue !== undefined) {
+        cometLiabilitiesValue += lpTokenValue;
+      } else {
+        let backstopToken = await BackstopToken.load(
+          sorobanHelper.network,
+          sorobanHelper.cometId,
+          (await sorobanHelper.loadPool()).config.blndTkn,
+          sorobanHelper.usdcId
+        );
+        cometCollateralValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
+      }
     }
   }
-  const totalLotValue = totalEffectiveCollateral + cometCollateralValue;
-  const totalBidValue = totalEffectiveLiabilities + cometLiabilitiesValue;
+  lotValue += cometCollateralValue;
+  bidValue += cometLiabilitiesValue;
 
-  // Calculate fillers health factor
-  const pool = await sorobanHelper.loadPool();
-  const fillerState = await sorobanHelper.loadUser(pool, filler.keypair.publicKey());
+  const fillerState = await sorobanHelper.loadUser(filler.keypair.publicKey());
   let fillBlock = 0;
   let fillPercent = 100;
 
   while (fillBlock < 400) {
     if (fillBlock <= 200) {
-      let profit = totalLotValue * (fillBlock / 200) - totalBidValue;
+      let profit = lotValue * (fillBlock / 200) - bidValue;
 
-      if (profit > filler.minProfitPct * totalBidValue) {
+      if (profit > filler.minProfitPct * bidValue) {
         // Calculate the new health factor
         let newHealthFactor =
           (fillerState.positionEstimates.totalEffectiveCollateral +
-            totalEffectiveCollateral * (fillBlock / 200)) /
-          (fillerState.positionEstimates.totalEffectiveLiabilities + totalEffectiveLiabilities);
+            effectiveCollateral * (fillBlock / 200)) /
+          (fillerState.positionEstimates.totalEffectiveLiabilities + effectiveLiabilities);
 
         // Adjust the fill percent to maintain the health factor
         if (newHealthFactor < filler.minHealthFactor) {
           for (let percent = 99; percent > 0; percent--) {
             const adjustedFillHealthFactor =
               (fillerState.positionEstimates.totalEffectiveCollateral +
-                (totalEffectiveCollateral * (fillBlock / 200) * percent) / 100) /
+                (effectiveCollateral * (fillBlock / 200) * percent) / 100) /
               (fillerState.positionEstimates.totalEffectiveLiabilities +
-                (totalEffectiveLiabilities * percent) / 100);
+                (effectiveLiabilities * percent) / 100);
             if (adjustedFillHealthFactor > filler.minHealthFactor) {
               fillPercent = percent;
               break;
@@ -99,23 +113,23 @@ export async function calculateBlockFillAndPercent(
       }
       fillBlock++;
     } else {
-      let profit = totalLotValue - (totalBidValue * (fillBlock - 200)) / 200;
+      let profit = lotValue - bidValue * (1 - (fillBlock - 200) / 200);
 
-      if (profit > filler.minProfitPct * totalBidValue) {
+      if (profit > filler.minProfitPct * bidValue) {
         // Calculate the new health factor
         let newHealthFactor =
-          (fillerState.positionEstimates.totalEffectiveCollateral + totalEffectiveCollateral) /
+          (fillerState.positionEstimates.totalEffectiveCollateral + effectiveCollateral) /
           (fillerState.positionEstimates.totalEffectiveLiabilities +
-            (totalEffectiveLiabilities * (fillBlock - 200)) / 200);
+            effectiveLiabilities * (1 - (fillBlock - 200) / 200));
 
         // Adjust the fill percent to maintain the health factor
         if (newHealthFactor < filler.minHealthFactor) {
           for (let percent = 99; percent > 0; percent--) {
             const adjustedFillHealthFactor =
               (fillerState.positionEstimates.totalEffectiveCollateral +
-                (totalEffectiveCollateral * percent) / 100) /
+                (effectiveCollateral * percent) / 100) /
               (fillerState.positionEstimates.totalEffectiveLiabilities +
-                (((totalEffectiveLiabilities * (fillBlock - 200)) / 200) * percent) / 100);
+                (effectiveLiabilities * (1 - (fillBlock - 200) / 200) * percent) / 100);
             if (adjustedFillHealthFactor > filler.minHealthFactor) {
               fillPercent = percent;
               break;
@@ -123,23 +137,23 @@ export async function calculateBlockFillAndPercent(
           }
         }
 
-        // If bid contain comets lp tokens check the balance of fillers comet lp tokens and adjust fill percent
-        if (cometLiabilitiesValue > 0) {
-          const cometLpTokenBalance = await sorobanHelper.getBalance(
-            sorobanHelper.cometId,
-            filler.keypair.publicKey()
-          );
-          if (cometLpTokenBalance < cometLiabilitiesValue) {
-            fillPercent = Math.min(
-              fillPercent,
-              Math.floor((cometLpTokenBalance / cometLiabilitiesValue) * 100)
-            );
-            break;
-          }
-        }
         break;
       }
       fillBlock++;
+    }
+  }
+
+  // If bid contain comets lp tokens check the balance of fillers comet lp tokens and adjust fill percent
+  if (cometLiabilitiesValue > 0) {
+    const cometLpTokenBalance = await sorobanHelper.getBalance(
+      sorobanHelper.cometId,
+      filler.keypair.publicKey()
+    );
+    if (cometLpTokenBalance < cometLiabilitiesValue) {
+      fillPercent = Math.min(
+        fillPercent,
+        Math.floor((cometLpTokenBalance / cometLiabilitiesValue) * 100)
+      );
     }
   }
   return { fillBlock, fillPercent };
@@ -165,10 +179,7 @@ export async function findFiller(
         continue outerLoop;
       }
     }
-    let fillerState = await sorobanHelper.loadUser(
-      await sorobanHelper.loadPool(),
-      filler.keypair.publicKey()
-    );
+    let fillerState = await sorobanHelper.loadUser(filler.keypair.publicKey());
 
     // If auction bid contains blend lp tokens find the filler with the highest comet lp token balance
     if (auctionData.bid.get(sorobanHelper.cometId) !== undefined) {
