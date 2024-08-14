@@ -1,0 +1,473 @@
+{
+  "id": "CBP7NO6F7FRDHSOFQBT2L2UWYIZ2PU76JKVRYAQTG3KZSQLYAOKIF2WB",
+  "config": {
+    "admin": "CANSYFVMIP7JVYEZQ463Y2I2VLEVNLDJJ4QNZTDBGLOOGKURPTW4A6FQ",
+    "name": "YieldBlox",
+    "blndTkn": "CD25MNVTZDL4Y3XBCPCJXGXATV5WUHHOWMYFF4YBEGU5FCPGMYTVG5JY",
+    "backstop": "CAO3AGAMZVRMHITL36EJ2VZQWKYRPWMQAPDQD5YEOF3GIF7T44U4JAL3",
+    "backstopRate": 2000000,
+    "maxPositions": 4,
+    "oracle": "CBWL56K3NK6XHUNTKDZNSEL37FR5CZMB6PF33KXSNHIDD5LLD4OT6IXB",
+    "status": 1,
+    "reserveList": [
+      "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+      "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+      "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV",
+      "CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK"
+    ],
+    "latestLedger": 53017264
+  },
+  "reserves": {
+    "type": "map",
+    "value": {
+      "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA": {
+        "assetId": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+        "tokenMetadata": {
+          "name": "native",
+          "symbol": "XLM",
+          "decimals": 7,
+          "asset": {
+            "code": "XLM"
+          }
+        },
+        "poolBalance": {
+          "type": "bigint",
+          "value": "16121441919817"
+        },
+        "config": {
+          "index": 0,
+          "decimals": 7,
+          "c_factor": 7500000,
+          "l_factor": 7500000,
+          "util": 5000000,
+          "max_util": 7000000,
+          "r_base": 100000,
+          "r_one": 500000,
+          "r_two": 5000000,
+          "r_three": 50000000,
+          "reactivity": 20
+        },
+        "data": {
+          "dRate": {
+            "type": "bigint",
+            "value": "1000568954"
+          },
+          "bRate": {
+            "type": "bigint",
+            "value": "1000087669"
+          },
+          "interestRateModifier": {
+            "type": "bigint",
+            "value": "100000000"
+          },
+          "dSupply": {
+            "type": "bigint",
+            "value": "5113892609360"
+          },
+          "bSupply": {
+            "type": "bigint",
+            "value": "21236380013457"
+          },
+          "backstopCredit": {
+            "type": "bigint",
+            "value": "996186"
+          },
+          "lastTime": {
+            "type": "bigint",
+            "value": "1723574859"
+          }
+        },
+        "borrowEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "93079"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "5978351"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723565204"
+            }
+          }
+        },
+        "supplyEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "93079"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "79988"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723574939"
+            }
+          }
+        },
+        "oraclePrice": 0.09899585234193,
+        "estimates": {
+          "dRate": 1.0005693319382896,
+          "bRate": 1.000087741808485,
+          "supplied": 2123824.333184506,
+          "borrowed": 511680.41117514914,
+          "available": 1612144.1919817,
+          "apy": 0.0034092400070854186,
+          "supplyApy": 0.0006570941935061094,
+          "util": 0.24092400070854186,
+          "timestamp": "1723578353"
+        },
+        "latestLedger": 53017264
+      },
+      "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75": {
+        "assetId": "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+        "tokenMetadata": {
+          "name": "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+          "symbol": "USDC",
+          "decimals": 7,
+          "asset": {
+            "code": "USDC",
+            "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          }
+        },
+        "poolBalance": {
+          "type": "bigint",
+          "value": "887453563938"
+        },
+        "config": {
+          "index": 1,
+          "decimals": 7,
+          "c_factor": 9500000,
+          "l_factor": 9500000,
+          "util": 8000000,
+          "max_util": 9500000,
+          "r_base": 300000,
+          "r_one": 600000,
+          "r_two": 1200000,
+          "r_three": 50000000,
+          "reactivity": 20
+        },
+        "data": {
+          "dRate": {
+            "type": "bigint",
+            "value": "1010182553"
+          },
+          "bRate": {
+            "type": "bigint",
+            "value": "1006990441"
+          },
+          "interestRateModifier": {
+            "type": "bigint",
+            "value": "1195678360"
+          },
+          "dSupply": {
+            "type": "bigint",
+            "value": "4765448831442"
+          },
+          "bSupply": {
+            "type": "bigint",
+            "value": "5661838275654"
+          },
+          "backstopCredit": {
+            "type": "bigint",
+            "value": "9045868"
+          },
+          "lastTime": {
+            "type": "bigint",
+            "value": "1723567543"
+          }
+        },
+        "borrowEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "232700"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "1668489"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723574728"
+            }
+          }
+        },
+        "supplyEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "232700"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "1336228"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723574728"
+            }
+          }
+        },
+        "oraclePrice": 0.99969142646062,
+        "estimates": {
+          "dRate": 1.0102345046078385,
+          "bRate": 1.0070254222505144,
+          "supplied": 570161.5080254594,
+          "borrowed": 481422.0839465812,
+          "available": 88745.3563938,
+          "apy": 0.15003066784427496,
+          "supplyApy": 0.10134233246185058,
+          "util": 0.8443468085391658,
+          "timestamp": "1723578353"
+        },
+        "latestLedger": 53017264
+      },
+      "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV": {
+        "assetId": "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV",
+        "tokenMetadata": {
+          "name": "EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
+          "symbol": "EURC",
+          "decimals": 7,
+          "asset": {
+            "code": "EURC",
+            "issuer": "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2"
+          }
+        },
+        "poolBalance": {
+          "type": "bigint",
+          "value": "645388828482"
+        },
+        "config": {
+          "index": 2,
+          "decimals": 7,
+          "c_factor": 9000000,
+          "l_factor": 9000000,
+          "util": 5000000,
+          "max_util": 8000000,
+          "r_base": 300000,
+          "r_one": 600000,
+          "r_two": 1200000,
+          "r_three": 50000000,
+          "reactivity": 20
+        },
+        "data": {
+          "dRate": {
+            "type": "bigint",
+            "value": "1009888396"
+          },
+          "bRate": {
+            "type": "bigint",
+            "value": "1004770254"
+          },
+          "interestRateModifier": {
+            "type": "bigint",
+            "value": "1256459879"
+          },
+          "dSupply": {
+            "type": "bigint",
+            "value": "595475410386"
+          },
+          "bSupply": {
+            "type": "bigint",
+            "value": "1240832301495"
+          },
+          "backstopCredit": {
+            "type": "bigint",
+            "value": "1019081"
+          },
+          "lastTime": {
+            "type": "bigint",
+            "value": "1723567988"
+          }
+        },
+        "borrowEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "93079"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "3843472"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723573325"
+            }
+          }
+        },
+        "supplyEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "93079"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "2190400"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723573325"
+            }
+          }
+        },
+        "oraclePrice": 1.09278286319197,
+        "estimates": {
+          "dRate": 1.009925046625657,
+          "bRate": 1.00478432490794,
+          "supplied": 124676.88463816191,
+          "borrowed": 60138.55315985133,
+          "available": 64538.8828482,
+          "apy": 0.11041938178802405,
+          "supplyApy": 0.04260814752223565,
+          "util": 0.48234452629919633,
+          "timestamp": "1723578353"
+        },
+        "latestLedger": 53017264
+      },
+      "CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK": {
+        "assetId": "CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK",
+        "tokenMetadata": {
+          "name": "AQUA:GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
+          "symbol": "AQUA",
+          "decimals": 7,
+          "asset": {
+            "code": "AQUA",
+            "issuer": "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA"
+          }
+        },
+        "poolBalance": {
+          "type": "bigint",
+          "value": "489805218724931"
+        },
+        "config": {
+          "index": 3,
+          "decimals": 7,
+          "c_factor": 0,
+          "l_factor": 5000000,
+          "util": 3500000,
+          "max_util": 6000000,
+          "r_base": 100000,
+          "r_one": 600000,
+          "r_two": 3000000,
+          "r_three": 50000000,
+          "reactivity": 20
+        },
+        "data": {
+          "dRate": {
+            "type": "bigint",
+            "value": "1000360584"
+          },
+          "bRate": {
+            "type": "bigint",
+            "value": "1000024989"
+          },
+          "interestRateModifier": {
+            "type": "bigint",
+            "value": "100000000"
+          },
+          "dSupply": {
+            "type": "bigint",
+            "value": "242411049688363"
+          },
+          "bSupply": {
+            "type": "bigint",
+            "value": "732285265438032"
+          },
+          "backstopCredit": {
+            "type": "bigint",
+            "value": "59875528"
+          },
+          "lastTime": {
+            "type": "bigint",
+            "value": "1723571395"
+          }
+        },
+        "supplyEmissions": {
+          "config": {
+            "eps": {
+              "type": "bigint",
+              "value": "93079"
+            },
+            "expiration": {
+              "type": "bigint",
+              "value": "1724136187"
+            }
+          },
+          "data": {
+            "index": {
+              "type": "bigint",
+              "value": "1716"
+            },
+            "lastTime": {
+              "type": "bigint",
+              "value": "1723571395"
+            }
+          }
+        },
+        "oraclePrice": 0.00064116899991,
+        "estimates": {
+          "dRate": 1.0003620576711663,
+          "bRate": 1.0000253792677727,
+          "supplied": 73230385.03018695,
+          "borrowed": 24249881.646847814,
+          "available": 48980521.8724931,
+          "apy": 0.006676766638125731,
+          "supplyApy": 0.001768780818086942,
+          "util": 0.33114472055733424,
+          "timestamp": "1723578353"
+        },
+        "latestLedger": 53017265
+      }
+    }
+  },
+  "estimates": {
+    "totalSupply": 963433.1870606157,
+    "totalBorrow": 613194.4209348453,
+    "totalBorrowApy": 0.13003849014637545
+  },
+  "latestLedger": 53017264,
+  "timestamp": "1723578353"
+}

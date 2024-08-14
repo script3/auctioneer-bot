@@ -1,7 +1,7 @@
 import { BlendContractType, PoolEventType, PoolNewAuctionEvent } from '@blend-capital/blend-sdk';
-import { EventType, PoolEventEvent } from '../../src/events.js';
-import { UserEntry } from '../../src/utils/db.js';
-import { parse, stringify } from '../../src/utils/json.js';
+import { EventType, PoolEventEvent } from '../src/events.js';
+import { UserEntry } from '../src/utils/db.js';
+import { parse, stringify } from '../src/utils/json.js';
 
 test('user entry parse round trip', () => {
   // happy path
