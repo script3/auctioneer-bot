@@ -64,18 +64,18 @@ export abstract class SubmissionQueue<T> {
     this.processing = true;
 
     while (this.submissions.length > 0) {
-      let retrieableSubmission = this.submissions.shift();
-      if (retrieableSubmission) {
-        try {
-          let ack = await this.submit(retrieableSubmission.submission);
-          if (!ack) {
-            this.retrySubmission(retrieableSubmission);
-          }
-        } catch (error) {
-          logger.error(`Unexpected error during submission`, error);
+      let retrieableSubmission = this.submissions[0];
+      try {
+        let ack = await this.submit(retrieableSubmission.submission);
+        if (!ack) {
           this.retrySubmission(retrieableSubmission);
         }
+      } catch (error) {
+        logger.error(`Unexpected error during submission`, error);
+        this.retrySubmission(retrieableSubmission);
       }
+      // Remove the submission from the queue after it has been processed
+      this.submissions.shift();
     }
 
     this.processing = false;

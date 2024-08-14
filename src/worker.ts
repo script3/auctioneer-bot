@@ -13,14 +13,8 @@ async function main() {
       try {
         const timer = Date.now();
         logger.info(`Processing: ${message?.data}`);
-        const blendHelper = new SorobanHelper(
-          network,
-          POOL_ADDRESS,
-          BACKSTOP_ADDRESS,
-          COMET_ID,
-          USDC_ID
-        );
-        const eventHandler = new WorkHandler(db, blendHelper);
+        const sorobanHelper = new SorobanHelper();
+        const eventHandler = new WorkHandler(db, sorobanHelper);
         await eventHandler.processEventWithRetryAndDeadletter(appEvent);
         logger.info(
           `Finished: ${message?.data} in ${Date.now() - timer}ms with delay ${timer - appEvent.timestamp}ms`

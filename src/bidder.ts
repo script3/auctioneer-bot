@@ -36,6 +36,11 @@ async function main() {
             continue;
           }
 
+          if (submissionQueue.containsAuction(auction)) {
+            // auction already being bid on
+            continue;
+          }
+
           let ledgersToFill = nextLedger - auction.fill_block;
           if (auction.fill_block === 0 || ledgersToFill <= 5 || ledgersToFill % 10 === 0) {
             // recalculate the auction
@@ -59,14 +64,12 @@ async function main() {
 
           // TODO: Add other fill conditions like force fill
           if (auction.fill_block <= nextLedger) {
-            if (!submissionQueue.containsAuction(auction)) {
-              let submission: AuctionBid = {
-                type: BidderSubmissionType.BID,
-                filler: filler,
-                auctionEntry: auction,
-              };
-              submissionQueue.addSubmission(submission, 10);
-            }
+            let submission: AuctionBid = {
+              type: BidderSubmissionType.BID,
+              filler: filler,
+              auctionEntry: auction,
+            };
+            submissionQueue.addSubmission(submission, 10);
           }
         }
 

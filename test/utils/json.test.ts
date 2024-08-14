@@ -72,10 +72,10 @@ test('blend event parse round trip', () => {
     eventType: PoolEventType.NewAuction,
     auctionType: 2,
     auctionData: {
-      bid: new Map<number, bigint>([[2, BigInt(123)]]),
-      lot: new Map<number, bigint>([
-        [1, BigInt(456)],
-        [2, BigInt(789)],
+      bid: new Map<string, bigint>([['C2', BigInt(123)]]),
+      lot: new Map<string, bigint>([
+        ['C1', BigInt(456)],
+        ['C2', BigInt(789)],
       ]),
       block: 123,
     },
@@ -88,6 +88,7 @@ test('blend event parse round trip', () => {
 
   let asJsonString = stringify(eventTest);
   let asObj = parse<PoolEventEvent>(asJsonString);
+
   // make editor follow typing
   if (
     asObj.type === EventType.POOL_EVENT &&
@@ -106,10 +107,16 @@ test('blend event parse round trip', () => {
     expect(eventTest.event.eventType).toEqual(asObj.event.eventType);
     expect(eventTest.event.auctionType).toEqual(asObj.event.auctionType);
     expect(eventTest.event.auctionData.bid.size).toEqual(asObj.event.auctionData.bid.size);
-    expect(eventTest.event.auctionData.bid.get(2)).toEqual(asObj.event.auctionData.bid.get(2));
+    expect(eventTest.event.auctionData.bid.get('C2')).toEqual(
+      asObj.event.auctionData.bid.get('C2')
+    );
     expect(eventTest.event.auctionData.lot.size).toEqual(asObj.event.auctionData.lot.size);
-    expect(eventTest.event.auctionData.lot.get(1)).toEqual(asObj.event.auctionData.lot.get(1));
-    expect(eventTest.event.auctionData.lot.get(2)).toEqual(asObj.event.auctionData.lot.get(2));
+    expect(eventTest.event.auctionData.lot.get('C1')).toEqual(
+      asObj.event.auctionData.lot.get('C1')
+    );
+    expect(eventTest.event.auctionData.lot.get('C2')).toEqual(
+      asObj.event.auctionData.lot.get('C2')
+    );
   } else {
     fail('Type mismatch');
   }
