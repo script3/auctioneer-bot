@@ -1,7 +1,9 @@
 import { PoolEventType } from '@blend-capital/blend-sdk';
 import { PoolEventEvent } from './events.js';
+import { shouldFillerCare } from './shared/filler.js';
 import { BlendHelper } from './utils/blend_helper.js';
-import { AuctioneerDatabase, UserEntry } from './utils/db.js';
+import { APP_CONFIG } from './utils/config.js';
+import { AuctioneerDatabase, AuctionEntry, AuctionType, UserEntry } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
@@ -82,7 +84,7 @@ export class PoolEventHandler {
             user_id: poolEvent.event.from,
             health_factor:
               user.positionEstimates.totalEffectiveCollateral /
-              user.positionEstimates.totalBorrowed,
+              user.positionEstimates.totalEffectiveLiabilities,
             collateral: collateralAddress,
             liabilities: liabilitiesAddress,
             updated: pool.latestLedger,
@@ -93,6 +95,96 @@ export class PoolEventHandler {
           // user does not have liabilities, remove db entry if it exists
           this.db.deleteUserEntry(poolEvent.event.from);
         }
+        break;
+      }
+      case PoolEventType.NewAuction: {
+        // check if the auction should be bid on by an auctioneer
+        const poolConfig = await this.blendHelper.loadPoolConfig();
+        let fillerFound = false;
+        for (const filler of APP_CONFIG.fillers) {
+          // check if filler should try and bid on the auction
+          if (!shouldFillerCare(filler, poolEvent.event.auctionData, poolConfig)) {
+            continue;
+          }
+          let auctionEntry: AuctionEntry = {
+            user_id: APP_CONFIG.backstopAddress,
+            auction_type: AuctionType.Liquidation,
+            filler: filler.keypair.publicKey(),
+            start_block: poolEvent.event.auctionData.block,
+            fill_block: 0,
+            updated: poolEvent.event.ledger,
+          };
+          this.db.setAuctionEntry(auctionEntry);
+          logger.info(
+            `Added auction of type ${poolEvent.event.auctionType} to ongoing for filler: ${filler.name}`
+          );
+          fillerFound = true;
+          break;
+        }
+        if (!fillerFound) {
+          logger.info(
+            `No filler found for auction with type ${poolEvent.event.auctionType}. Ignoring.`
+          );
+        }
+        break;
+      }
+      case PoolEventType.NewLiquidationAuction: {
+        // check if the auction should be bid on by an auctioneer
+        const poolConfig = await this.blendHelper.loadPoolConfig();
+        let fillerFound = false;
+        for (const filler of APP_CONFIG.fillers) {
+          // check if filler should try and bid on the auction
+          if (!shouldFillerCare(filler, poolEvent.event.auctionData, poolConfig)) {
+            continue;
+          }
+          // auctioneer can bid on auction
+          let auctionEntry: AuctionEntry = {
+            user_id: APP_CONFIG.backstopAddress,
+            auction_type: AuctionType.Liquidation,
+            filler: filler.keypair.publicKey(),
+            start_block: poolEvent.event.auctionData.block,
+            fill_block: 0,
+            updated: poolEvent.event.ledger,
+          };
+          this.db.setAuctionEntry(auctionEntry);
+          logger.info(
+            `Added liquidation auction for user ${poolEvent.event.user} to ongoing for filler: ${filler.name}`
+          );
+          fillerFound = true;
+          break;
+        }
+        if (!fillerFound) {
+          logger.info(`No filler found for liquidation auction. Ignoring auction.`);
+        }
+        break;
+      }
+      case PoolEventType.DeleteLiquidationAuction: {
+        // user position is now healthy and user deleted their liquidation auction
+        let runResult = this.db.deleteAuctionEntry(poolEvent.event.user, AuctionType.Liquidation);
+        if (runResult.changes !== 0) {
+          logger.info(
+            `Auction deleted. Removed liquidation auction for user ${poolEvent.event.user}`
+          );
+        }
+        break;
+      }
+      case PoolEventType.FillAuction: {
+        if (poolEvent.event.fillAmount === BigInt(100)) {
+          // auction was fully filled, remove from ongoing auctions
+          let runResult = this.db.deleteAuctionEntry(
+            poolEvent.event.user,
+            poolEvent.event.auctionType
+          );
+          if (runResult.changes !== 0) {
+            logger.info(
+              `Auction filled completely by ${poolEvent.event.from}. Removed auction type ${poolEvent.event.auctionType} for user ${poolEvent.event.user}`
+            );
+          }
+        }
+      }
+      default: {
+        logger.error(`Unhandled event type: ${poolEvent.event.eventType}`);
+        break;
       }
     }
   }

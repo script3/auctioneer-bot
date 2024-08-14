@@ -22,6 +22,52 @@ export interface UserEntry {
   updated: number;
 }
 
+export enum AuctionType {
+  Liquidation = 0,
+  BadDebt = 1,
+  Interest = 2,
+}
+
+export interface AuctionEntry {
+  // The auction's source address
+  user_id: string;
+  // The auction's type
+  auction_type: AuctionType;
+  // The address for the filler of the auction
+  filler: string;
+  // The block the auction started
+  start_block: number;
+  // The estimated block the auction will be filled
+  fill_block: number;
+  // The ledger this entry was last updated
+  updated: number;
+}
+
+export interface FilledAuctionEntry {
+  // The transaction hash
+  tx_hash: string;
+  // The address that filled the auction
+  filler: string;
+  // The auction's source address
+  user_id: string;
+  // The auction's type
+  auction_type: AuctionType;
+  // The bid amounts
+  bid: Map<string, bigint>;
+  // The total bid amount
+  bid_total: number;
+  // The lot amounts
+  lot: Map<string, bigint>;
+  // The total lot amount
+  lot_total: number;
+  // The estimated profit
+  est_profit: number;
+  // The block the auction was filled
+  fill_block: number;
+  // The timestamp the auction was filled
+  timestamp: string;
+}
+
 export class AuctioneerDatabase {
   private db: Database.Database;
 
@@ -217,6 +263,111 @@ export class AuctioneerDatabase {
       });
     } catch (error: any) {
       logger.error(`Error getting user entries with collateral: ${error}`);
+      throw error;
+    }
+  }
+
+  //********** Auction Table **********//
+
+  /**
+   * Set an auction in the database.
+   * @param entry - The auction entry to set
+   * @returns The result of the sql operation
+   */
+  setAuctionEntry(entry: AuctionEntry): RunResult {
+    try {
+      return this.db
+        .prepare(
+          'INSERT INTO auctions (user_id, auction_type, filler, start_block, fill_block, updated) VALUES (?, ?, ?, ?, ?, ?)'
+        )
+        .run(
+          entry.user_id,
+          entry.auction_type,
+          entry.filler,
+          entry.start_block,
+          entry.fill_block,
+          entry.updated
+        );
+    } catch (error: any) {
+      logger.error(`Error setting auction entry: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an auction from the database.
+   *
+   * This does nothing if the auction does not exist.
+   *
+   * @param user_id - The auction's source address
+   * @param auction_type - The auction's type
+   * @returns The result of the sql operation
+   */
+  deleteAuctionEntry(user_id: string, auction_type: AuctionType): RunResult {
+    try {
+      return this.db
+        .prepare('DELETE FROM auctions WHERE user_id = ? AND auction_type = ?')
+        .run(user_id, auction_type);
+    } catch (error: any) {
+      logger.error(`Error deleting auction entry: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all ongoing auction from the database.
+   * @param user_id - The auction's source address
+   * @param auction_type - The auction's type
+   * @returns The result of the sql operation
+   */
+  getAllAuctionEntries(): AuctionEntry[] {
+    try {
+      let entries: any[] = this.db.prepare('SELECT * FROM auctions').all();
+      return entries.map((entry) => {
+        return {
+          user_id: entry.user_id,
+          auction_type: entry.auction_type,
+          filler: entry.filler,
+          start_block: entry.start_block,
+          fill_block: entry.fill_block,
+          updated: entry.updated,
+        } as AuctionEntry;
+      });
+    } catch (error: any) {
+      logger.error(`Error getting all auction entries: ${error}`);
+      throw error;
+    }
+  }
+
+  //********** Filled Auction Table **********//
+
+  /**
+   * Set a filled auction in the database.
+   * @param entry - The filled auction entry to set
+   * @returns The result of the sql operation
+   */
+  setFilledAuctionEntry(entry: FilledAuctionEntry): RunResult {
+    try {
+      return this.db
+        .prepare(
+          'INSERT INTO filled_auctions (tx_hash, filler, user_id, auction_type, bid, bid_total, lot, lot_total, est_profit, fill_block, timestamp) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        .run(
+          entry.tx_hash,
+          entry.filler,
+          entry.user_id,
+          entry.auction_type,
+          stringify(entry.bid),
+          entry.bid_total,
+          stringify(entry.lot),
+          entry.lot_total,
+          entry.est_profit,
+          entry.fill_block,
+          entry.timestamp
+        );
+    } catch (error: any) {
+      logger.error(`Error setting filled auction entry: ${error}`);
       throw error;
     }
   }

@@ -1,16 +1,19 @@
-import { Network, Pool, PoolUser } from '@blend-capital/blend-sdk';
+import { Network, Pool, PoolConfig, PoolUser } from '@blend-capital/blend-sdk';
+import { APP_CONFIG } from './config.js';
 
 export class BlendHelper {
   network: Network;
-  poolId: string;
-  backstopId: string;
   timestamp: number;
   private pool_cache: Pool | undefined;
 
-  constructor(network: Network, poolId: string, backstopId: string) {
-    this.network = network;
-    this.poolId = poolId;
-    this.backstopId = backstopId;
+  constructor() {
+    this.network = {
+      rpc: APP_CONFIG.rpcURL,
+      passphrase: APP_CONFIG.networkPassphrase,
+      opts: {
+        allowHttp: true,
+      },
+    };
     this.timestamp = Math.floor(Date.now() / 1000);
     this.pool_cache = undefined;
   }
@@ -19,8 +22,16 @@ export class BlendHelper {
     if (this.pool_cache) {
       return this.pool_cache;
     } else {
-      this.pool_cache = await Pool.load(this.network, this.poolId, this.timestamp);
+      this.pool_cache = await Pool.load(this.network, APP_CONFIG.poolAddress, this.timestamp);
       return this.pool_cache;
+    }
+  }
+
+  async loadPoolConfig(): Promise<PoolConfig> {
+    if (this.pool_cache) {
+      return this.pool_cache.config;
+    } else {
+      return await PoolConfig.load(this.network, APP_CONFIG.poolAddress);
     }
   }
 

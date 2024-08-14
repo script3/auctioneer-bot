@@ -1,0 +1,19 @@
+{
+    "rpcURL": "https://example.com/rpc",
+    "networkPassphrase": "example-network-passphrase",
+    "poolAddress": "C...",
+    "backstopAddress": "C...",
+    "backstopTokenAddress": "C...",
+    "usdcAddress": "C...",
+    "auctioneers": [
+        {
+            "secret": "example-secret",
+            "minProfitPct": 0.05,
+            "minHealthFactor": 0.8,
+            "forceFill": true,
+            "supportedBid": ["bid1", "bid2"],
+            "supportedLot": ["lot1", "lot2"]
+        }
+    ],
+    "slackWebhook": "https://example.com/slack-webhook"
+}
