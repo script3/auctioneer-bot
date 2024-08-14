@@ -1,3 +1,4 @@
+import { calculateBlockFillAndPercent } from './auction.js';
 import { AuctionBid, BidderSubmissionType, BidderSubmitter } from './bidder_submitter.js';
 import { EventType } from './events.js';
 import { APP_CONFIG } from './utils/config.js';
@@ -5,6 +6,7 @@ import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { readEvent } from './utils/messages.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
 
 export interface OngoingAuction {
   auctionType: AuctionType;
@@ -24,6 +26,8 @@ async function main() {
         const nextLedger = appEvent.ledger + 1;
         logger.info(`Processing for ledger: ${nextLedger}`);
         const auctions = db.getAllAuctionEntries();
+        const sorobanHelper = new SorobanHelper();
+        const pool = await sorobanHelper.loadPool();
 
         for (let auction of auctions) {
           const filler = APP_CONFIG.fillers.find((f) => f.keypair.publicKey() === auction.filler);
@@ -35,7 +39,22 @@ async function main() {
           let ledgersToFill = nextLedger - auction.fill_block;
           if (auction.fill_block === 0 || ledgersToFill <= 5 || ledgersToFill % 10 === 0) {
             // recalculate the auction
-            // TODO: update calc to fill and update auction entry in db
+            let auctionData = await sorobanHelper.loadAuction(
+              auction.user_id,
+              auction.auction_type
+            );
+            if (auctionData === undefined) {
+              logger.error(`Failed to load auction data for ${stringify(auction)}`);
+              continue;
+            }
+            let fillCalculation = await calculateBlockFillAndPercent(
+              filler,
+              auctionData,
+              pool.reserves,
+              sorobanHelper
+            );
+            auction.fill_block = fillCalculation.fillBlock;
+            db.setAuctionEntry(auction);
           }
 
           // TODO: Add other fill conditions like force fill

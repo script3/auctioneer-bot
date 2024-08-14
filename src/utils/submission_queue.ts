@@ -50,6 +50,7 @@ export abstract class SubmissionQueue<T> {
       logger.error(
         `Submission retry limit reached, dropping submission: ${stringify(submission.submission)}`
       );
+      this.onDrop(submission.submission);
     }
   }
 
@@ -89,4 +90,12 @@ export abstract class SubmissionQueue<T> {
    * @returns A boolean if the submissions is acknowledged.
    */
   abstract submit(submission: T): Promise<boolean>;
+
+  /**
+   * Perform an action when a submission is dropped from the queue.
+   *
+   * @param submission - The submission that was dropped
+   * @returns void
+   */
+  abstract onDrop(submission: T): void;
 }

@@ -7,9 +7,7 @@ import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
-import { BlendHelper } from './utils/soroban_helper.js';
-
-console.log;
+import { SorobanHelper } from './utils/soroban_helper.js';
 
 async function main() {
   // spawn child processes
@@ -85,9 +83,9 @@ async function main() {
 
   collectorInterval = setInterval(async () => {
     try {
-      let blend_helper = new BlendHelper();
-      let pool_event_handler = new PoolEventHandler(db, blend_helper);
-      await runCollector(worker, bidder, db, rpc, APP_CONFIG.poolAddress, pool_event_handler);
+      let sorobanHelper = new SorobanHelper();
+      let poolEventHandler = new PoolEventHandler(db, sorobanHelper);
+      await runCollector(worker, bidder, db, rpc, APP_CONFIG.poolAddress, poolEventHandler);
     } catch (e: any) {
       logger.error(`Error in collector`, e);
     }

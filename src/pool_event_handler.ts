@@ -1,6 +1,6 @@
 import { PoolEventType } from '@blend-capital/blend-sdk';
+import { canFillerBid } from './auction.js';
 import { PoolEventEvent } from './events.js';
-import { shouldFillerCare } from './shared/filler.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType, UserEntry } from './utils/db.js';
 import { stringify } from './utils/json.js';
@@ -99,11 +99,10 @@ export class PoolEventHandler {
       }
       case PoolEventType.NewAuction: {
         // check if the auction should be bid on by an auctioneer
-        const poolConfig = await this.blendHelper.loadPoolConfig();
         let fillerFound = false;
         for (const filler of APP_CONFIG.fillers) {
           // check if filler should try and bid on the auction
-          if (!shouldFillerCare(filler, poolEvent.event.auctionData, poolConfig)) {
+          if (!canFillerBid(filler, poolEvent.event.auctionData)) {
             continue;
           }
           let auctionEntry: AuctionEntry = {
@@ -130,11 +129,10 @@ export class PoolEventHandler {
       }
       case PoolEventType.NewLiquidationAuction: {
         // check if the auction should be bid on by an auctioneer
-        const poolConfig = await this.blendHelper.loadPoolConfig();
         let fillerFound = false;
         for (const filler of APP_CONFIG.fillers) {
           // check if filler should try and bid on the auction
-          if (!shouldFillerCare(filler, poolEvent.event.auctionData, poolConfig)) {
+          if (!canFillerBid(filler, poolEvent.event.auctionData)) {
             continue;
           }
           // auctioneer can bid on auction

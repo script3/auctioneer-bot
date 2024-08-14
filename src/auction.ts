@@ -1,5 +1,5 @@
-import { AuctionData, Backstop, BackstopToken, Reserve } from '@blend-capital/blend-sdk';
-import { Filler } from './utils/db.js';
+import { AuctionData, BackstopToken, Reserve } from '@blend-capital/blend-sdk';
+import { Filler } from './utils/config.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 
 interface FillCalculation {
@@ -145,51 +145,24 @@ export async function calculateBlockFillAndPercent(
   return { fillBlock, fillPercent };
 }
 
-export async function findFiller(
-  fillers: Filler[],
-  auctionData: AuctionData,
-  sorobanHelper: SorobanHelper
-): Promise<Filler | undefined> {
-  // Find the filler with the highest health factor
-  let bestFiller: Filler | undefined = undefined;
-  let bestHealthFactor = 0;
-
-  outerLoop: for (let filler of fillers) {
-    for (let [asset, _] of auctionData.lot.entries()) {
-      if (!filler.supportedLot.includes(asset) && asset !== sorobanHelper.cometId) {
-        continue outerLoop;
-      }
-    }
-    for (let [asset, _] of auctionData.bid.entries()) {
-      if (!filler.supportedBid.includes(asset) && asset !== sorobanHelper.cometId) {
-        continue outerLoop;
-      }
-    }
-    let fillerState = await sorobanHelper.loadUser(
-      await sorobanHelper.loadPool(),
-      filler.keypair.publicKey()
-    );
-
-    // If auction bid contains blend lp tokens find the filler with the highest comet lp token balance
-    if (auctionData.bid.get(sorobanHelper.cometId) !== undefined) {
-      const cometLpTokenBalance = await sorobanHelper.getBalance(
-        sorobanHelper.cometId,
-        filler.keypair.publicKey()
-      );
-      let fillPercent = cometLpTokenBalance / Number(auctionData.bid.get(sorobanHelper.cometId));
-      if (fillPercent > bestHealthFactor) {
-        bestHealthFactor = fillPercent;
-        bestFiller = filler;
-      }
-    } else {
-      let healthFactor =
-        fillerState.positionEstimates.totalEffectiveCollateral /
-        fillerState.positionEstimates.totalEffectiveLiabilities;
-      if (healthFactor > bestHealthFactor) {
-        bestHealthFactor = healthFactor;
-        bestFiller = filler;
-      }
+/**
+ * Check if the filler can bid on an auction.
+ * @param filler - The filler to check
+ * @param auctionData - The auction data for the auction
+ * @returns A boolean indicating if the filler cares about the auction.
+ */
+export function canFillerBid(filler: Filler, auctionData: AuctionData): boolean {
+  // validate lot
+  for (let [assetId, _] of auctionData.lot) {
+    if (!filler.supportedLot.some((address) => assetId === address)) {
+      return false;
     }
   }
-  return bestFiller;
+  // validate bid
+  for (let [assetId, _] of auctionData.bid) {
+    if (!filler.supportedBid.some((address) => assetId === address)) {
+      return false;
+    }
+  }
+  return true;
 }

@@ -5,6 +5,7 @@
     "backstopAddress": "C...",
     "backstopTokenAddress": "C...",
     "usdcAddress": "C...",
+    "blndAddress": "C...",
     "auctioneers": [
         {
             "secret": "example-secret",

@@ -1,11 +1,4 @@
-import {
-  AuctionData,
-  Backstop,
-  Network,
-  Pool,
-  PoolContract,
-  PoolUser,
-} from '@blend-capital/blend-sdk';
+import { AuctionData, Network, Pool, PoolContract, PoolUser } from '@blend-capital/blend-sdk';
 import {
   Account,
   Contract,
@@ -15,38 +8,31 @@ import {
   SorobanRpc,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
+import { APP_CONFIG } from './config.js';
 import { logger } from './logger.js';
 
 export class SorobanHelper {
   network: Network;
-  poolId: string;
-  backstopId: string;
-  cometId: string;
-  usdcId: string;
   timestamp: number;
   private pool_cache: Pool | undefined;
 
-  constructor(
-    network: Network,
-    poolId: string,
-    backstopId: string,
-    cometId: string,
-    usdcId: string
-  ) {
-    this.network = network;
-    this.poolId = poolId;
-    this.backstopId = backstopId;
+  constructor() {
+    this.network = {
+      rpc: APP_CONFIG.rpcURL,
+      passphrase: APP_CONFIG.networkPassphrase,
+      opts: {
+        allowHttp: true,
+      },
+    };
     this.timestamp = Math.floor(Date.now() / 1000);
     this.pool_cache = undefined;
-    this.cometId = cometId;
-    this.usdcId = usdcId;
   }
 
   async loadPool(): Promise<Pool> {
     if (this.pool_cache) {
       return this.pool_cache;
     } else {
-      this.pool_cache = await Pool.load(this.network, this.poolId, this.timestamp);
+      this.pool_cache = await Pool.load(this.network, APP_CONFIG.poolAddress, this.timestamp);
       return this.pool_cache;
     }
   }
@@ -57,7 +43,7 @@ export class SorobanHelper {
 
   async loadAuction(userId: string, auctionType: number): Promise<AuctionData | undefined> {
     try {
-      let poolClient = new PoolContract(this.poolId);
+      let poolClient = new PoolContract(APP_CONFIG.poolAddress);
       let op = poolClient.call(
         'get_auction',
         ...[nativeToScVal(auctionType), nativeToScVal(userId, { type: 'address' })]
@@ -79,14 +65,14 @@ export class SorobanHelper {
 
   async simLPTokenToUSDC(amount: number): Promise<number | undefined> {
     try {
-      let comet = new Contract(this.cometId);
+      let comet = new Contract(APP_CONFIG.backstopTokenAddress);
       let op = comet.call(
         'wdr_tokn_amt_in_get_lp_tokns_out',
         ...[
-          nativeToScVal(this.usdcId, { type: 'address' }),
+          nativeToScVal(APP_CONFIG.usdcAddress, { type: 'address' }),
           nativeToScVal(amount, { type: 'i128' }),
           nativeToScVal(0, { type: 'i128' }),
-          nativeToScVal(this.backstopId, { type: 'address' }),
+          nativeToScVal(APP_CONFIG.blndAddress, { type: 'address' }),
         ]
       );
       let account = new Account(Keypair.random().publicKey(), '123');
@@ -104,10 +90,10 @@ export class SorobanHelper {
     }
   }
 
-  async getBalance(tokenId: string, userId: string): Promise<number> {
+  async simBalance(tokenId: string, userId: string): Promise<number> {
     try {
-      let comet = new Contract(tokenId);
-      let op = comet.call('balance', ...[nativeToScVal(userId, { type: 'address' })]);
+      let contract = new Contract(tokenId);
+      let op = contract.call('balance', ...[nativeToScVal(userId, { type: 'address' })]);
       let account = new Account(Keypair.random().publicKey(), '123');
       let tx = new TransactionBuilder(account).addOperation(op).build();
       let rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);

@@ -17,6 +17,9 @@ export interface AppConfig {
   networkPassphrase: string;
   poolAddress: string;
   backstopAddress: string;
+  backstopTokenAddress: string;
+  usdcAddress: string;
+  blndAddress: string;
   keypair: Keypair;
   fillers: Filler[];
   slackWebhook: string | undefined;
@@ -39,6 +42,9 @@ function validateAppConfig(config: any): boolean {
     typeof config.networkPassphrase !== 'string' ||
     typeof config.poolAddress !== 'string' ||
     typeof config.backstopAddress !== 'string' ||
+    typeof config.backstopTokenAddress !== 'string' ||
+    typeof config.usdcAddress !== 'string' ||
+    typeof config.blndAddress !== 'string' ||
     typeof config.keypair !== 'string' ||
     !Array.isArray(config.fillers) ||
     (config.slackWebhook !== undefined && typeof config.slackWebhook !== 'string')
