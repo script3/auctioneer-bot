@@ -3,11 +3,11 @@ import { fork } from 'child_process';
 import { runCollector } from './collector.js';
 import { EventType, PriceUpdateEvent } from './events.js';
 import { PoolEventHandler } from './pool_event_handler.js';
-import { BlendHelper } from './utils/blend_helper.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
+import { BlendHelper } from './utils/soroban_helper.js';
 
 console.log;
 

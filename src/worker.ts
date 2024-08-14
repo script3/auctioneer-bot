@@ -1,7 +1,7 @@
-import { BlendHelper } from './utils/blend_helper.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent, readEvent } from './utils/messages.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkHandler } from './work_handler.js';
 
 async function main() {
@@ -13,7 +13,13 @@ async function main() {
       try {
         const timer = Date.now();
         logger.info(`Processing: ${message?.data}`);
-        const blendHelper = new BlendHelper();
+        const blendHelper = new SorobanHelper(
+          network,
+          POOL_ADDRESS,
+          BACKSTOP_ADDRESS,
+          COMET_ID,
+          USDC_ID
+        );
         const eventHandler = new WorkHandler(db, blendHelper);
         await eventHandler.processEventWithRetryAndDeadletter(appEvent);
         logger.info(
