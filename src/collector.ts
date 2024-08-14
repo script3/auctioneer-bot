@@ -83,6 +83,7 @@ export async function runCollector(
             timestamp: Date.now(),
             event: blendPoolEvent,
           };
+          logger.info(`Processing pool event: ${JSON.stringify(poolEvent)}`);
           await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
         }
       }

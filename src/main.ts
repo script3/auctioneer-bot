@@ -1,20 +1,13 @@
-import { Network } from '@blend-capital/blend-sdk';
 import { SorobanRpc } from '@stellar/stellar-sdk';
 import { fork } from 'child_process';
-import { config } from 'dotenv';
 import { runCollector } from './collector.js';
 import { EventType, PriceUpdateEvent } from './events.js';
 import { PoolEventHandler } from './pool_event_handler.js';
-import { BlendHelper } from './utils/soroban_helper.js';
+import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
-
-config({ path: './data/.env' });
-const RPC_URL = process.env.RPC_URL as string;
-const PASSPHRASE = process.env.NETWORK_PASSPHRASE as string;
-const POOL_ADDRESS = process.env.POOL_ADDRESS as string;
-const BACKSTOP_ADDRESS = process.env.BACKSTOP_ADDRESS as string;
+import { SorobanHelper } from './utils/soroban_helper.js';
 
 async function main() {
   // spawn child processes
@@ -24,14 +17,7 @@ async function main() {
   let collectorInterval: NodeJS.Timeout | null = null;
 
   const db = AuctioneerDatabase.connect();
-  const rpc = new SorobanRpc.Server(RPC_URL, { allowHttp: true });
-  const network: Network = {
-    rpc: RPC_URL,
-    passphrase: PASSPHRASE,
-    opts: {
-      allowHttp: true,
-    },
-  };
+  const rpc = new SorobanRpc.Server(APP_CONFIG.rpcURL, { allowHttp: true });
 
   function shutdown(fromChild: boolean = false) {
     console.log('Shutting down auctioneer...');
@@ -97,9 +83,9 @@ async function main() {
 
   collectorInterval = setInterval(async () => {
     try {
-      let blend_helper = new BlendHelper(network, POOL_ADDRESS, BACKSTOP_ADDRESS);
-      let pool_event_handler = new PoolEventHandler(db, blend_helper);
-      await runCollector(worker, bidder, db, rpc, POOL_ADDRESS, pool_event_handler);
+      let sorobanHelper = new SorobanHelper();
+      let poolEventHandler = new PoolEventHandler(db, sorobanHelper);
+      await runCollector(worker, bidder, db, rpc, APP_CONFIG.poolAddress, poolEventHandler);
     } catch (e: any) {
       logger.error(`Error in collector`, e);
     }

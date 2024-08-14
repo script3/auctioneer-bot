@@ -1,9 +1,9 @@
 import { AppEvent, EventType } from './events.js';
-import { BlendHelper } from './utils/soroban_helper.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -13,11 +13,11 @@ const RETRY_DELAY = 1000;
  */
 export class WorkHandler {
   private db: AuctioneerDatabase;
-  private blendHelper: BlendHelper;
+  private sorobanHelper: SorobanHelper;
 
-  constructor(db: AuctioneerDatabase, blendHelper: BlendHelper) {
+  constructor(db: AuctioneerDatabase, sorobanHelper: SorobanHelper) {
     this.db = db;
-    this.blendHelper = blendHelper;
+    this.sorobanHelper = sorobanHelper;
   }
 
   /**

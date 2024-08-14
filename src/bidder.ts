@@ -1,49 +1,83 @@
-import { Network } from '@blend-capital/blend-sdk';
-import { AuctionHandler } from './auction_handler.js';
-import { SorobanHelper } from './utils/soroban_helper.js';
-import { AuctioneerDatabase } from './utils/db.js';
-import { logger } from './utils/logger.js';
-import { deadletterEvent, readEvent } from './utils/messages.js';
+import { calculateBlockFillAndPercent } from './auction.js';
+import { AuctionBid, BidderSubmissionType, BidderSubmitter } from './bidder_submitter.js';
 import { EventType } from './events.js';
+import { APP_CONFIG } from './utils/config.js';
+import { AuctioneerDatabase, AuctionType } from './utils/db.js';
+import { stringify } from './utils/json.js';
+import { logger } from './utils/logger.js';
+import { readEvent } from './utils/messages.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
 
-const RPC_URL = process.env.RPC_URL as string;
-const PASSPHRASE = process.env.NETWORK_PASSPHRASE as string;
-const POOL_ADDRESS = process.env.POOL_ADDRESS as string;
-const BACKSTOP_ADDRESS = process.env.BACKSTOP_ADDRESS as string;
-const COMET_ID = process.env.COMET_ID as string;
-const USDC_ID = process.env.USDC_ID as string;
+export interface OngoingAuction {
+  auctionType: AuctionType;
+  userId: string;
+  retriesRemaining: number;
+}
 
 async function main() {
   const db = AuctioneerDatabase.connect();
-  const network: Network = {
-    rpc: RPC_URL,
-    passphrase: PASSPHRASE,
-    opts: {
-      allowHttp: true,
-    },
-  };
+  const submissionQueue = new BidderSubmitter(db);
 
   process.on('message', async (message: any) => {
     let appEvent = readEvent(message);
     if (appEvent?.type === EventType.LEDGER) {
       try {
         const timer = Date.now();
-        logger.info(`Processing: ${message?.data}`);
-        const blendHelper = new SorobanHelper(
-          network,
-          POOL_ADDRESS,
-          BACKSTOP_ADDRESS,
-          COMET_ID,
-          USDC_ID
-        );
-        const eventHandler = new AuctionHandler([], db, blendHelper);
-        await eventHandler.processEvent(appEvent);
+        const nextLedger = appEvent.ledger + 1;
+        logger.info(`Processing for ledger: ${nextLedger}`);
+        const auctions = db.getAllAuctionEntries();
+        const sorobanHelper = new SorobanHelper();
+        const pool = await sorobanHelper.loadPool();
+
+        for (let auction of auctions) {
+          const filler = APP_CONFIG.fillers.find((f) => f.keypair.publicKey() === auction.filler);
+          if (filler === undefined) {
+            logger.error(`Filler not found for auction: ${stringify(auction)}`);
+            continue;
+          }
+
+          if (submissionQueue.containsAuction(auction)) {
+            // auction already being bid on
+            continue;
+          }
+
+          let ledgersToFill = nextLedger - auction.fill_block;
+          if (auction.fill_block === 0 || ledgersToFill <= 5 || ledgersToFill % 10 === 0) {
+            // recalculate the auction
+            let auctionData = await sorobanHelper.loadAuction(
+              auction.user_id,
+              auction.auction_type
+            );
+            if (auctionData === undefined) {
+              logger.error(`Failed to load auction data for ${stringify(auction)}`);
+              continue;
+            }
+            let fillCalculation = await calculateBlockFillAndPercent(
+              filler,
+              auctionData,
+              pool.reserves,
+              sorobanHelper
+            );
+            auction.fill_block = fillCalculation.fillBlock;
+            db.setAuctionEntry(auction);
+          }
+
+          // TODO: Add other fill conditions like force fill
+          if (auction.fill_block <= nextLedger) {
+            let submission: AuctionBid = {
+              type: BidderSubmissionType.BID,
+              filler: filler,
+              auctionEntry: auction,
+            };
+            submissionQueue.addSubmission(submission, 10);
+          }
+        }
+
         logger.info(
           `Finished: ${message?.data} in ${Date.now() - timer}ms with delay ${timer - appEvent.timestamp}ms`
         );
       } catch (err) {
         logger.error(`Unexpected error in bidder for ${message?.data}`, err);
-        await deadletterEvent(appEvent);
       }
     } else {
       logger.error(`Invalid event read, message: ${message}`);
@@ -66,7 +100,7 @@ async function main() {
     process.exit(1);
   });
 
-  console.log('Bidder listening for events...');
+  console.log('Bidder listening for blocks...');
 }
 
 main().catch((error) => {
