@@ -54,8 +54,8 @@ async function main() {
             }
             let fillCalculation = await calculateBlockFillAndPercent(
               filler,
+              auction.auction_type,
               auctionData,
-              pool.reserves,
               sorobanHelper
             );
             auction.fill_block = fillCalculation.fillBlock;
