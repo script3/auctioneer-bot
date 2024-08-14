@@ -1,4 +1,11 @@
-import { AuctionData, Network, Pool, PoolContract, PoolUser } from '@blend-capital/blend-sdk';
+import {
+  AuctionData,
+  BackstopToken,
+  Network,
+  Pool,
+  PoolContract,
+  PoolUser,
+} from '@blend-capital/blend-sdk';
 import {
   Account,
   Contract,
@@ -37,7 +44,8 @@ export class SorobanHelper {
     }
   }
 
-  async loadUser(pool: Pool, address: string): Promise<PoolUser> {
+  async loadUser(address: string): Promise<PoolUser> {
+    const pool = await this.loadPool();
     return await pool.loadUser(this.network, address);
   }
 
@@ -61,6 +69,15 @@ export class SorobanHelper {
       logger.error(`Error fetching liquidation: ${e}`);
       return undefined;
     }
+  }
+
+  async loadBackstopToken(): Promise<BackstopToken> {
+    return await BackstopToken.load(
+      this.network,
+      APP_CONFIG.backstopTokenAddress,
+      APP_CONFIG.blndAddress,
+      APP_CONFIG.usdcAddress
+    );
   }
 
   async simLPTokenToUSDC(amount: number): Promise<number | undefined> {
