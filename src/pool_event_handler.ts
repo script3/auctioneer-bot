@@ -67,7 +67,7 @@ export class PoolEventHandler {
       case PoolEventType.Repay: {
         // update the user in the db
         const pool = await this.sorobanHelper.loadPool();
-        const user = await this.sorobanHelper.loadUser(pool, poolEvent.event.from);
+        const user = await this.sorobanHelper.loadUser(poolEvent.event.from);
         if (user.positions.liabilities.size !== 0) {
           // user has liabilities, update db entry
           let collateralAddress = new Map<string, bigint>();
