@@ -2,8 +2,8 @@ import { AuctionType } from '../src/utils/db.js';
 import { Keypair } from '@stellar/stellar-sdk';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import { calculateBlockFillAndPercent } from '../src/auction.js';
-import { mockedFillerState, mockedPool } from './utils/mocks.js';
-import { APP_CONFIG, Filler } from '../src/utils/config.js';
+import { mockedFillerState, mockedPool } from './helpers/mocks.js';
+import { Filler } from '../src/utils/config.js';
 jest.mock('../src/utils/soroban_helper.js', () => {
   return {
     SorobanHelper: jest.fn().mockImplementation(() => {
@@ -88,7 +88,7 @@ describe('calculateBlockFillAndPercent', () => {
   });
 
   it('test user liquidation does not exceed min health factor', async () => {
-    mockedFillerState.positionEstimates.totalEffectiveLiabilities = 18640;
+    mockedFillerState.positionEstimates.totalEffectiveLiabilities = 18660;
     sorobanHelper.loadUser = jest.fn().mockReturnValue(mockedFillerState);
 
     let auctionData = {
@@ -138,7 +138,7 @@ describe('calculateBlockFillAndPercent', () => {
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
-  it('test interest auction fill percent does not exceed filler lp balance', async () => {
+  it('test interest auction fully fills', async () => {
     let filler: Filler = {
       name: 'Tester',
       keypair: Keypair.random(),
@@ -175,8 +175,8 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(286);
-    expect(fillCalc.fillPercent).toEqual(82);
+    expect(fillCalc.fillBlock).toEqual(306);
+    expect(fillCalc.fillPercent).toEqual(100);
   });
 
   it('test bad debt auction', async () => {
