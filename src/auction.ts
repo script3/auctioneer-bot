@@ -73,36 +73,19 @@ export async function calculateBlockFillAndPercent(
     }
   }
 
-  const fillerState = await sorobanHelper.loadUser(filler.keypair.publicKey());
   let fillBlock = 0;
   let fillPercent = 100;
 
   if (lotValue >= bidValue * (1 + filler.minProfitPct)) {
     const minLotAmount = bidValue * (1 + filler.minProfitPct);
-    effectiveCollateral = effectiveCollateral * (minLotAmount / lotValue);
     fillBlock = 200 - (lotValue - minLotAmount) / (lotValue / 200);
   } else {
     const maxBidAmount = lotValue * (1 - filler.minProfitPct);
-    effectiveLiabilities = effectiveLiabilities * (maxBidAmount / bidValue);
     fillBlock = 200 + (bidValue - maxBidAmount) / (bidValue / 200);
   }
   fillBlock = Math.min(Math.max(Math.ceil(fillBlock), 0), 400);
 
-  if (effectiveCollateral < effectiveLiabilities) {
-    let additionalLiabilities = effectiveLiabilities - effectiveCollateral;
-    let maxAdditionalLiabilities =
-      (fillerState.positionEstimates.totalEffectiveCollateral -
-        filler.minHealthFactor * fillerState.positionEstimates.totalEffectiveLiabilities) /
-      filler.minHealthFactor;
-    if (additionalLiabilities > maxAdditionalLiabilities) {
-      fillPercent = Math.min(
-        fillPercent,
-        Math.floor((maxAdditionalLiabilities / additionalLiabilities) * 100)
-      );
-    }
-  }
-
-  // If bid contain comets lp tokens check the balance of fillers comet lp tokens and adjust fill percent
+  // Ensure the filler can fully fill interest auctions
   if (auctionType === AuctionType.Interest) {
     const cometLpTokenBalance = await sorobanHelper.simBalance(
       APP_CONFIG.backstopTokenAddress,
@@ -115,7 +98,32 @@ export async function calculateBlockFillAndPercent(
           (1 - (fillBlock - 200) / 200);
 
     if (cometLpTokenBalance < cometLpBid) {
-      fillPercent = Math.min(fillPercent, Math.floor((cometLpTokenBalance / cometLpBid) * 100));
+      let additionalCometLp = cometLpBid - cometLpTokenBalance;
+      const bidStepSize = Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)) / 200;
+      fillBlock += additionalCometLp / bidStepSize;
+      fillBlock = Math.min(Math.max(Math.ceil(fillBlock), 0), 400);
+    }
+  }
+  // Ensure the filler can maintain their minimum health factor
+  else {
+    const fillerState = await sorobanHelper.loadUser(filler.keypair.publicKey());
+    if (fillBlock <= 200) {
+      effectiveCollateral = effectiveCollateral * (fillBlock / 200);
+    } else {
+      effectiveLiabilities = effectiveLiabilities * (1 - (fillBlock - 200) / 200);
+    }
+    if (effectiveCollateral < effectiveLiabilities) {
+      let additionalLiabilities = effectiveLiabilities - effectiveCollateral;
+      let maxAdditionalLiabilities =
+        (fillerState.positionEstimates.totalEffectiveCollateral -
+          filler.minHealthFactor * fillerState.positionEstimates.totalEffectiveLiabilities) /
+        filler.minHealthFactor;
+      if (additionalLiabilities > maxAdditionalLiabilities) {
+        fillPercent = Math.min(
+          fillPercent,
+          Math.floor((maxAdditionalLiabilities / additionalLiabilities) * 100)
+        );
+      }
     }
   }
 
