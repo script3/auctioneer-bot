@@ -100,8 +100,13 @@ export async function calculateBlockFillAndPercent(
     if (cometLpTokenBalance < cometLpBid) {
       let additionalCometLp = cometLpBid - cometLpTokenBalance;
       const bidStepSize = Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)) / 200;
-      fillBlock += additionalCometLp / bidStepSize;
-      fillBlock = Math.min(Math.max(Math.ceil(fillBlock), 0), 400);
+
+      if (additionalCometLp >= 0 && bidStepSize > 0) {
+        fillBlock += Math.ceil(additionalCometLp / bidStepSize);
+        if (filler.forceFill) {
+          fillBlock = Math.min(fillBlock, 375);
+        }
+      }
     }
   }
   // Ensure the filler can maintain their minimum health factor
@@ -113,15 +118,15 @@ export async function calculateBlockFillAndPercent(
       effectiveLiabilities = effectiveLiabilities * (1 - (fillBlock - 200) / 200);
     }
     if (effectiveCollateral < effectiveLiabilities) {
-      let additionalLiabilities = effectiveLiabilities - effectiveCollateral;
-      let maxAdditionalLiabilities =
-        (fillerState.positionEstimates.totalEffectiveCollateral -
-          filler.minHealthFactor * fillerState.positionEstimates.totalEffectiveLiabilities) /
-        filler.minHealthFactor;
-      if (additionalLiabilities > maxAdditionalLiabilities) {
+      let excessLiabilities = effectiveLiabilities - effectiveCollateral;
+      let liabilityLimitToHF =
+        fillerState.positionEstimates.totalEffectiveCollateral / filler.minHealthFactor -
+        fillerState.positionEstimates.totalEffectiveLiabilities;
+
+      if (excessLiabilities > liabilityLimitToHF) {
         fillPercent = Math.min(
           fillPercent,
-          Math.floor((maxAdditionalLiabilities / additionalLiabilities) * 100)
+          Math.floor((liabilityLimitToHF / excessLiabilities) * 100)
         );
       }
     }
