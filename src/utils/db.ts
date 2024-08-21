@@ -278,7 +278,14 @@ export class AuctioneerDatabase {
     try {
       return this.db
         .prepare(
-          'INSERT INTO auctions (user_id, auction_type, filler, start_block, fill_block, updated) VALUES (?, ?, ?, ?, ?, ?)'
+          `INSERT INTO auctions (user_id, auction_type, filler, start_block, fill_block, updated) 
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, auction_type) 
+          DO UPDATE SET 
+            filler = excluded.filler,
+            start_block = excluded.start_block,
+            fill_block = excluded.fill_block,
+            updated = excluded.updated`
         )
         .run(
           entry.user_id,

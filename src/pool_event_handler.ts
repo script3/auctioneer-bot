@@ -107,7 +107,7 @@ export class PoolEventHandler {
           }
           let auctionEntry: AuctionEntry = {
             user_id: APP_CONFIG.backstopAddress,
-            auction_type: AuctionType.Liquidation,
+            auction_type: poolEvent.event.auctionType,
             filler: filler.keypair.publicKey(),
             start_block: poolEvent.event.auctionData.block,
             fill_block: 0,
@@ -137,7 +137,7 @@ export class PoolEventHandler {
           }
           // auctioneer can bid on auction
           let auctionEntry: AuctionEntry = {
-            user_id: APP_CONFIG.backstopAddress,
+            user_id: poolEvent.event.user,
             auction_type: AuctionType.Liquidation,
             filler: filler.keypair.publicKey(),
             start_block: poolEvent.event.auctionData.block,

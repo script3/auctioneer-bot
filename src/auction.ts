@@ -1,8 +1,10 @@
-import { AuctionData, BackstopToken, Reserve } from '@blend-capital/blend-sdk';
+import { AuctionData, Request, RequestType } from '@blend-capital/blend-sdk';
 import { Filler } from './utils/config.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { AuctionType } from './utils/db.js';
 import { APP_CONFIG } from './utils/config.js';
+import { AuctionBid } from './bidder_submitter.js';
+import { Asset } from '@stellar/stellar-sdk';
 interface FillCalculation {
   fillBlock: number;
   fillPercent: number;
@@ -44,13 +46,13 @@ export async function calculateBlockFillAndPercent(
       }
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
-      let lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
       if (lpTokenValue !== undefined) {
         lotValue += lpTokenValue;
       }
       // Approximate the value of the comet tokens if simulation fails
       else {
-        let backstopToken = await sorobanHelper.loadBackstopToken();
+        const backstopToken = await sorobanHelper.loadBackstopToken();
         lotValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
       }
     }
@@ -63,11 +65,11 @@ export async function calculateBlockFillAndPercent(
       bidValue += reserve.toAssetFromDToken(amount) * reserve.oraclePrice;
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
-      let lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
       if (lpTokenValue !== undefined) {
         bidValue += lpTokenValue;
       } else {
-        let backstopToken = await sorobanHelper.loadBackstopToken();
+        const backstopToken = await sorobanHelper.loadBackstopToken();
         bidValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
       }
     }
@@ -96,9 +98,8 @@ export async function calculateBlockFillAndPercent(
         ? Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!)
         : Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!) *
           (1 - (fillBlock - 200) / 200);
-
     if (cometLpTokenBalance < cometLpBid) {
-      let additionalCometLp = cometLpBid - cometLpTokenBalance;
+      const additionalCometLp = cometLpBid - cometLpTokenBalance;
       const bidStepSize = Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)) / 200;
 
       if (additionalCometLp >= 0 && bidStepSize > 0) {
@@ -118,8 +119,8 @@ export async function calculateBlockFillAndPercent(
       effectiveLiabilities = effectiveLiabilities * (1 - (fillBlock - 200) / 200);
     }
     if (effectiveCollateral < effectiveLiabilities) {
-      let excessLiabilities = effectiveLiabilities - effectiveCollateral;
-      let liabilityLimitToHF =
+      const excessLiabilities = effectiveLiabilities - effectiveCollateral;
+      const liabilityLimitToHF =
         fillerState.positionEstimates.totalEffectiveCollateral / filler.minHealthFactor -
         fillerState.positionEstimates.totalEffectiveLiabilities;
 
@@ -143,16 +144,137 @@ export async function calculateBlockFillAndPercent(
  */
 export function canFillerBid(filler: Filler, auctionData: AuctionData): boolean {
   // validate lot
-  for (let [assetId, _] of auctionData.lot) {
+  for (const [assetId, _] of auctionData.lot) {
     if (!filler.supportedLot.some((address) => assetId === address)) {
       return false;
     }
   }
   // validate bid
-  for (let [assetId, _] of auctionData.bid) {
+  for (const [assetId, _] of auctionData.bid) {
     if (!filler.supportedBid.some((address) => assetId === address)) {
       return false;
     }
   }
   return true;
+}
+
+/**
+ * Scale an auction to the block the auction is to be filled and the percent which will be filled.
+ * @param auction - The auction to scale
+ * @param fillBlock - The block to scale to
+ * @param fillPercent - The percent to scale to
+ * @returns The scaled auction
+ */
+export function scaleAuction(
+  auction: AuctionData,
+  fillBlock: number,
+  fillPercent: number
+): AuctionData {
+  let scaledAuction: AuctionData = {
+    block: auction.block + fillBlock,
+    bid: new Map(),
+    lot: new Map(),
+  };
+  let lotModifier;
+  let bidModifier;
+  if (fillBlock <= 200) {
+    lotModifier = fillBlock / 200;
+    bidModifier = 1;
+  } else {
+    lotModifier = 1;
+    if (fillBlock < 400) {
+      bidModifier = 1 - (fillBlock - 200) / 200;
+    } else {
+      bidModifier = 0;
+    }
+  }
+
+  for (const [assetId, amount] of auction.lot) {
+    const scaledLot = Math.floor((Number(amount) * lotModifier * fillPercent) / 100);
+    if (scaledLot > 0) {
+      scaledAuction.lot.set(assetId, BigInt(scaledLot));
+    }
+  }
+  for (const [assetId, amount] of auction.bid) {
+    const scaledBid = Math.ceil((Number(amount) * bidModifier * fillPercent) / 100);
+    if (scaledBid > 0) {
+      scaledAuction.bid.set(assetId, BigInt(scaledBid));
+    }
+  }
+  return scaledAuction;
+}
+
+export async function buildFillRequests(
+  auctionBid: AuctionBid,
+  auctionData: AuctionData,
+  fillPercent: number,
+  sorobanHelper: SorobanHelper
+): Promise<Request[]> {
+  let fillRequests: Request[] = [];
+  let requestType: RequestType;
+  switch (auctionBid.auctionEntry.auction_type) {
+    case AuctionType.Liquidation:
+      requestType = RequestType.FillUserLiquidationAuction;
+      break;
+    case AuctionType.Interest:
+      requestType = RequestType.FillInterestAuction;
+      break;
+    case AuctionType.BadDebt:
+      requestType = RequestType.FillBadDebtAuction;
+      break;
+  }
+  fillRequests.push({
+    request_type: requestType,
+    address: auctionBid.auctionEntry.user_id,
+    amount: BigInt(fillPercent),
+  });
+
+  // Interest auctions transfer underlying assets
+  if (auctionBid.auctionEntry.auction_type !== AuctionType.Interest) {
+    let fillerState = await sorobanHelper.loadUser(auctionBid.auctionEntry.filler);
+    const reserves = (await sorobanHelper.loadPool()).reserves;
+
+    for (const [assetId, amount] of auctionData.bid) {
+      const reserve = reserves.get(assetId);
+      let fillerBalance = await sorobanHelper.simBalance(assetId, auctionBid.auctionEntry.filler);
+
+      // Ensure the filler has XLM to pay for the transaction
+      if (assetId === Asset.native().contractId(APP_CONFIG.networkPassphrase)) {
+        fillerBalance = fillerBalance > 100 * 1e7 ? fillerBalance - 100 * 1e7 : 0;
+      }
+      if (reserve !== undefined && fillerBalance > 0) {
+        const liabilityLeft = Math.max(0, Number(amount) - fillerBalance);
+        const effectiveLiabilityIncrease =
+          reserve.toEffectiveAssetFromDToken(BigInt(liabilityLeft)) * reserve.oraclePrice;
+        fillerState.positionEstimates.totalEffectiveLiabilities += effectiveLiabilityIncrease;
+        fillRequests.push({
+          request_type: RequestType.Repay,
+          address: assetId,
+          amount: BigInt(fillerBalance),
+        });
+      }
+    }
+
+    for (const [assetId, amount] of auctionData.lot) {
+      const reserve = reserves.get(assetId);
+
+      if (reserve !== undefined && !fillerState.positions.collateral.has(reserve.config.index)) {
+        const effectiveCollateralIncrease =
+          reserve.toEffectiveAssetFromBToken(amount) * reserve.oraclePrice;
+        const newHF =
+          fillerState.positionEstimates.totalEffectiveCollateral /
+          fillerState.positionEstimates.totalEffectiveLiabilities;
+        if (newHF > auctionBid.filler.minHealthFactor) {
+          fillRequests.push({
+            request_type: RequestType.WithdrawCollateral,
+            address: assetId,
+            amount: BigInt(amount),
+          });
+        } else {
+          fillerState.positionEstimates.totalEffectiveCollateral += effectiveCollateralIncrease;
+        }
+      }
+    }
+  }
+  return fillRequests;
 }

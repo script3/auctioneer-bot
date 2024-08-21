@@ -1,4 +1,6 @@
-import { Filler } from './utils/config.js';
+import { PoolContract } from '@blend-capital/blend-sdk';
+import { buildFillRequests, calculateBlockFillAndPercent, scaleAuction } from './auction.js';
+import { APP_CONFIG, Filler } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
@@ -64,7 +66,6 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
   }
 
   async submitBid(sorobanHelper: SorobanHelper, auctionBid: AuctionBid): Promise<boolean> {
-    logger.warn('Auction bid is not implemented.');
     /**
      * TODO:
      * 1. Calc fill percentage and fill block, ensure auction can still be bid on. If the bid is later,
@@ -74,6 +75,72 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
      * 4. If the bid fails due to the auction being filled, remove the auction from the database.
      * 5. If the bid fails for any other reason, return false to retry the submission.
      */
+
+    const auctionData = await sorobanHelper.loadAuction(
+      auctionBid.auctionEntry.user_id,
+      auctionBid.auctionEntry.auction_type
+    );
+
+    // Auction has been filled remove from the database
+    if (auctionData === undefined) {
+      this.db.deleteAuctionEntry(
+        auctionBid.auctionEntry.user_id,
+        auctionBid.auctionEntry.auction_type
+      );
+      return true;
+    }
+
+    const fillCalculation = await calculateBlockFillAndPercent(
+      auctionBid.filler,
+      auctionBid.auctionEntry.auction_type,
+      auctionData,
+      sorobanHelper
+    );
+
+    if (auctionBid.auctionEntry.fill_block >= fillCalculation.fillBlock + auctionData.block) {
+      let scaledAuction = scaleAuction(
+        auctionData,
+        fillCalculation.fillBlock,
+        fillCalculation.fillPercent
+      );
+      const requests = await buildFillRequests(
+        auctionBid,
+        scaledAuction,
+        fillCalculation.fillPercent,
+        sorobanHelper
+      );
+      const pool = new PoolContract(APP_CONFIG.poolAddress);
+      const isSuccess = await sorobanHelper.submitTransaction(
+        pool.submit({
+          from: auctionBid.auctionEntry.filler,
+          spender: auctionBid.auctionEntry.filler,
+          to: auctionBid.auctionEntry.filler,
+          requests: requests,
+        }),
+        auctionBid.filler.keypair
+      );
+      if (isSuccess) {
+        this.db.deleteAuctionEntry(
+          auctionBid.auctionEntry.user_id,
+          auctionBid.auctionEntry.auction_type
+        );
+        return true;
+      } else {
+        const auctionData = await sorobanHelper.loadAuction(
+          auctionBid.auctionEntry.user_id,
+          auctionBid.auctionEntry.auction_type
+        );
+        // Auction has been filled remove from the database
+        if (auctionData === undefined) {
+          this.db.deleteAuctionEntry(
+            auctionBid.auctionEntry.user_id,
+            auctionBid.auctionEntry.auction_type
+          );
+          return true;
+        }
+        return false;
+      }
+    }
     return true;
   }
 
