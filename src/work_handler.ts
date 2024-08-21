@@ -1,8 +1,8 @@
 import { AppEvent, EventType } from './events.js';
 import { AuctioneerDatabase } from './utils/db.js';
-import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
+import { setPrices } from './utils/prices.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 
 const MAX_RETRIES = 3;
@@ -61,9 +61,8 @@ export class WorkHandler {
   async processEvent(appEvent: AppEvent): Promise<void> {
     switch (appEvent.type) {
       case EventType.PRICE_UPDATE:
-        let test = this.db.getStatusEntry('collector');
-        logger.info(`From worker: ${stringify(test)}`);
-        throw new Error('Test the deadletter queue');
+        await setPrices(this.db);
+        break;
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);
         break;

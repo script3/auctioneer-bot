@@ -16,5 +16,17 @@
             "supportedLot": ["lot1", "lot2"]
         }
     ],
+    "priceSources": [
+        {
+            "assetId": "C...",
+            "type": "coinbase",
+            "symbol": "ETH-USD"
+        },
+        {
+            "assetId": "C...",
+            "type": "binance",
+            "symbol": "BTCUSDT"
+        }
+    ],
     "slackWebhook": "https://example.com/slack-webhook"
 }

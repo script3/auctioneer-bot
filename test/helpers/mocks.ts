@@ -1,7 +1,10 @@
 import { Pool, PoolUserEmissionData, Reserve } from '@blend-capital/blend-sdk';
-import { parse } from '../../src/utils/json';
+import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import { AuctioneerDatabase } from '../../src/utils/db';
+import { parse } from '../../src/utils/json';
+
 const mockPoolPath = path.resolve(__dirname, 'mock-pool.json');
 let pool = parse<Pool>(fs.readFileSync(mockPoolPath, 'utf8'));
 pool.reserves.forEach((reserve, assetId, map) => {
@@ -49,3 +52,9 @@ export let mockedFillerState = {
   emissionEstimates: {} as any,
   latestLedger: 0,
 };
+
+export function inMemoryAuctioneerDb(): AuctioneerDatabase {
+  let db = new Database(':memory:');
+  db.exec(fs.readFileSync(path.resolve(__dirname, '../../init_db.sql'), 'utf8'));
+  return new AuctioneerDatabase(db);
+}
