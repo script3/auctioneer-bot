@@ -6,8 +6,8 @@ echo "NPM version: $(npm -v)"
 echo "SQLite version: $(sqlite3 --version)"
 
 # Verify node configuration files are present
-if ! test -f ./data/.env; then
-  echo "No .env file found in /app/data. Aborting."
+if ! test -f ./data/config.json; then
+  echo "No config.json file found in /app/data. Aborting."
   exit 1
 fi
 
