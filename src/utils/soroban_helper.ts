@@ -193,7 +193,7 @@ export class SorobanHelper {
 
       let get_tx_response = await rpc.getTransaction(txResponse.hash);
       while (get_tx_response.status === 'NOT_FOUND') {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 250));
         get_tx_response = await rpc.getTransaction(txResponse.hash);
       }
 
