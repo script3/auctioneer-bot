@@ -200,8 +200,6 @@ export class SorobanHelper {
       if (get_tx_response.status !== 'SUCCESS') {
         const error = parseError(get_tx_response);
         logger.error('Tx Failed: ', error);
-        console.log(get_tx_response);
-
         throw error;
       }
       logger.info('Transaction successfully submitted: ' + get_tx_response);
