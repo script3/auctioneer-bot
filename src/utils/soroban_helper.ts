@@ -1,6 +1,7 @@
 import {
   AuctionData,
   BackstopToken,
+  ContractError,
   Network,
   parseError,
   Pool,
@@ -9,6 +10,7 @@ import {
 } from '@blend-capital/blend-sdk';
 import {
   Account,
+  Address,
   BASE_FEE,
   Contract,
   Keypair,
@@ -54,36 +56,39 @@ export class SorobanHelper {
 
   async loadAuction(userId: string, auctionType: number): Promise<AuctionData | undefined> {
     try {
-      let poolClient = new PoolContract(APP_CONFIG.poolAddress);
-      let op = poolClient
-        .call(
-          'get_auction',
-          ...[
-            nativeToScVal(auctionType, { type: 'u32' }),
-            nativeToScVal(userId, { type: 'address' }),
-          ]
-        )
-        .toXDR('base64');
-      let account = new Account(userId, '123');
-      let tx = new TransactionBuilder(account, {
-        networkPassphrase: this.network.passphrase,
-        fee: BASE_FEE,
-        timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 5 * 60 * 1000 },
-      })
-        .addOperation(xdr.Operation.fromXDR(op, 'base64'))
-        .build();
       let rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
-      let result = await rpc.simulateTransaction(tx);
-      if (SorobanRpc.Api.isSimulationSuccess(result) && result.result?.retval) {
-        return PoolContract.spec.funcResToNative(
-          'get_auction',
-          result.result.retval.toXDR('base64')
-        ) as AuctionData;
+      const res: xdr.ScVal[] = [
+        xdr.ScVal.scvSymbol('Auction'),
+        xdr.ScVal.scvMap([
+          new xdr.ScMapEntry({
+            key: xdr.ScVal.scvSymbol('auct_type'),
+            val: xdr.ScVal.scvU32(auctionType),
+          }),
+          new xdr.ScMapEntry({
+            key: xdr.ScVal.scvSymbol('user'),
+            val: Address.fromString(userId).toScVal(),
+          }),
+        ]),
+      ];
+      const ledgerKey = xdr.LedgerKey.contractData(
+        new xdr.LedgerKeyContractData({
+          contract: Address.fromString(APP_CONFIG.poolAddress).toScAddress(),
+          key: xdr.ScVal.scvVec(res),
+          durability: xdr.ContractDataDurability.temporary(),
+        })
+      );
+      let ledgerData = await rpc.getLedgerEntries(ledgerKey);
+      if (ledgerData.entries.length === 0) {
+        return undefined;
       }
-      return undefined;
+      let auction = PoolContract.spec.funcResToNative(
+        'get_auction',
+        ledgerData.entries[0].val.contractData().val()
+      );
+      return auction as AuctionData;
     } catch (e) {
-      logger.error(`Error fetching liquidation: ${e}`);
-      return undefined;
+      logger.error(`Error loading auction: ${e}`);
+      throw e;
     }
   }
 
@@ -155,7 +160,11 @@ export class SorobanHelper {
     }
   }
 
-  async submitTransaction(operation: string, keypair: Keypair): Promise<boolean> {
+  async submitTransaction<T>(
+    operation: string,
+    keypair: Keypair,
+    parser: (xdr_string: string) => T
+  ): Promise<SorobanRpc.Api.GetSuccessfulTransactionResponse & { txHash: string }> {
     const rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
     const curr_time = Date.now();
     const account = await rpc.getAccount(keypair.publicKey());
@@ -179,7 +188,7 @@ export class SorobanHelper {
       if (txResponse.status !== 'PENDING') {
         const error = parseError(txResponse);
         logger.error('Transaction failed to send: ' + txResponse.hash + ' ' + error);
-        return false;
+        throw error;
       }
 
       let get_tx_response = await rpc.getTransaction(txResponse.hash);
@@ -191,13 +200,14 @@ export class SorobanHelper {
       if (get_tx_response.status !== 'SUCCESS') {
         const error = parseError(get_tx_response);
         logger.error('Tx Failed: ', error);
+        console.log(get_tx_response);
 
-        return false;
+        throw error;
       }
-      return true;
+      logger.info('Transaction successfully submitted: ' + get_tx_response);
+      return { ...get_tx_response, txHash: txResponse.hash };
     }
     const error = parseError(simResult);
-    logger.error('Tx Failed: ', error);
-    return false;
+    throw error;
   }
 }
