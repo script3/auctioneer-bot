@@ -1,4 +1,4 @@
-import { AuctionData, Request, RequestType } from '@blend-capital/blend-sdk';
+import { AuctionData, Request, RequestType, Reserve } from '@blend-capital/blend-sdk';
 import { Filler } from './utils/config.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { AuctionType } from './utils/db.js';
@@ -8,6 +8,13 @@ import { Asset } from '@stellar/stellar-sdk';
 interface FillCalculation {
   fillBlock: number;
   fillPercent: number;
+}
+
+interface AuctionValue {
+  effectiveCollateral: number;
+  effectiveLiabilities: number;
+  lotValue: number;
+  bidValue: number;
 }
 
 /**
@@ -24,68 +31,21 @@ export async function calculateBlockFillAndPercent(
   auctionData: AuctionData,
   sorobanHelper: SorobanHelper
 ): Promise<FillCalculation> {
-  // Represents the effective collateral and liabilities of the auction for health factor calculation
-  let effectiveCollateral = 0;
-  let effectiveLiabilities = 0;
-  // Represents the value of the lot and bid for profit calculation
-  let lotValue = 0;
-  let bidValue = 0;
-  const reserves = (await sorobanHelper.loadPool()).reserves;
-
   // Sum the effective collateral and lot value
-  for (const [assetId, amount] of auctionData.lot) {
-    const reserve = reserves.get(assetId);
-    if (reserve !== undefined) {
-      if (auctionType !== AuctionType.Interest) {
-        effectiveCollateral += reserve.toEffectiveAssetFromBToken(amount) * reserve.oraclePrice;
-        lotValue += reserve.toAssetFromBToken(amount) * reserve.oraclePrice;
-      }
-      // Interest auctions are in underlying assets
-      else {
-        lotValue += (Number(amount) / 10 ** reserve.config.decimals) * reserve.oraclePrice;
-      }
-    } else if (assetId === APP_CONFIG.backstopTokenAddress) {
-      // Simulate singled sided withdraw to USDC
-      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
-      if (lpTokenValue !== undefined) {
-        lotValue += lpTokenValue;
-      }
-      // Approximate the value of the comet tokens if simulation fails
-      else {
-        const backstopToken = await sorobanHelper.loadBackstopToken();
-        lotValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
-      }
-    }
-  }
-  // Sum the effective liabilities and bid value
-  for (const [assetId, amount] of auctionData.bid) {
-    const reserve = reserves.get(assetId);
-    if (reserve !== undefined) {
-      effectiveLiabilities += reserve.toEffectiveAssetFromDToken(amount) * reserve.oraclePrice;
-      bidValue += reserve.toAssetFromDToken(amount) * reserve.oraclePrice;
-    } else if (assetId === APP_CONFIG.backstopTokenAddress) {
-      // Simulate singled sided withdraw to USDC
-      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
-      if (lpTokenValue !== undefined) {
-        bidValue += lpTokenValue;
-      } else {
-        const backstopToken = await sorobanHelper.loadBackstopToken();
-        bidValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
-      }
-    }
-  }
+  let { effectiveCollateral, effectiveLiabilities, lotValue, bidValue } =
+    await calculateAuctionValue(auctionType, auctionData, sorobanHelper);
 
-  let fillBlock = 0;
+  let fillBlockDelay = 0;
   let fillPercent = 100;
 
   if (lotValue >= bidValue * (1 + filler.minProfitPct)) {
     const minLotAmount = bidValue * (1 + filler.minProfitPct);
-    fillBlock = 200 - (lotValue - minLotAmount) / (lotValue / 200);
+    fillBlockDelay = 200 - (lotValue - minLotAmount) / (lotValue / 200);
   } else {
     const maxBidAmount = lotValue * (1 - filler.minProfitPct);
-    fillBlock = 200 + (bidValue - maxBidAmount) / (bidValue / 200);
+    fillBlockDelay = 200 + (bidValue - maxBidAmount) / (bidValue / 200);
   }
-  fillBlock = Math.min(Math.max(Math.ceil(fillBlock), 0), 400);
+  fillBlockDelay = Math.min(Math.max(Math.ceil(fillBlockDelay), 0), 400);
 
   // Ensure the filler can fully fill interest auctions
   if (auctionType === AuctionType.Interest) {
@@ -94,18 +54,18 @@ export async function calculateBlockFillAndPercent(
       filler.keypair.publicKey()
     );
     const cometLpBid =
-      fillBlock <= 200
+      fillBlockDelay <= 200
         ? Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!)
         : Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!) *
-          (1 - (fillBlock - 200) / 200);
+          (1 - (fillBlockDelay - 200) / 200);
     if (cometLpTokenBalance < cometLpBid) {
       const additionalCometLp = cometLpBid - cometLpTokenBalance;
       const bidStepSize = Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)) / 200;
 
       if (additionalCometLp >= 0 && bidStepSize > 0) {
-        fillBlock += Math.ceil(additionalCometLp / bidStepSize);
+        fillBlockDelay += Math.ceil(additionalCometLp / bidStepSize);
         if (filler.forceFill) {
-          fillBlock = Math.min(fillBlock, 375);
+          fillBlockDelay = Math.min(fillBlockDelay, 375);
         }
       }
     }
@@ -113,10 +73,10 @@ export async function calculateBlockFillAndPercent(
   // Ensure the filler can maintain their minimum health factor
   else {
     const fillerState = await sorobanHelper.loadUser(filler.keypair.publicKey());
-    if (fillBlock <= 200) {
-      effectiveCollateral = effectiveCollateral * (fillBlock / 200);
+    if (fillBlockDelay <= 200) {
+      effectiveCollateral = effectiveCollateral * (fillBlockDelay / 200);
     } else {
-      effectiveLiabilities = effectiveLiabilities * (1 - (fillBlock - 200) / 200);
+      effectiveLiabilities = effectiveLiabilities * (1 - (fillBlockDelay - 200) / 200);
     }
     if (effectiveCollateral < effectiveLiabilities) {
       const excessLiabilities = effectiveLiabilities - effectiveCollateral;
@@ -133,7 +93,7 @@ export async function calculateBlockFillAndPercent(
     }
   }
 
-  return { fillBlock, fillPercent };
+  return { fillBlock: auctionData.block + fillBlockDelay, fillPercent };
 }
 
 /**
@@ -171,19 +131,20 @@ export function scaleAuction(
   fillPercent: number
 ): AuctionData {
   let scaledAuction: AuctionData = {
-    block: auction.block + fillBlock,
+    block: fillBlock,
     bid: new Map(),
     lot: new Map(),
   };
   let lotModifier;
   let bidModifier;
-  if (fillBlock <= 200) {
-    lotModifier = fillBlock / 200;
+  const fillBlockDelta = fillBlock - auction.block;
+  if (fillBlockDelta <= 200) {
+    lotModifier = fillBlockDelta / 200;
     bidModifier = 1;
   } else {
     lotModifier = 1;
-    if (fillBlock < 400) {
-      bidModifier = 1 - (fillBlock - 200) / 200;
+    if (fillBlockDelta < 400) {
+      bidModifier = 1 - (fillBlockDelta - 200) / 200;
     } else {
       bidModifier = 0;
     }
@@ -277,4 +238,65 @@ export async function buildFillRequests(
     }
   }
   return fillRequests;
+}
+
+export async function calculateAuctionValue(
+  auctionType: AuctionType,
+  auctionData: AuctionData,
+  sorobanHelper: SorobanHelper
+): Promise<AuctionValue> {
+  let effectiveCollateral = 0;
+  let lotValue = 0;
+  let effectiveLiabilities = 0;
+  let bidValue = 0;
+  const reserves = (await sorobanHelper.loadPool()).reserves;
+  for (const [assetId, amount] of auctionData.lot) {
+    const reserve = reserves.get(assetId);
+    if (reserve !== undefined) {
+      if (auctionType !== AuctionType.Interest) {
+        effectiveCollateral += reserve.toEffectiveAssetFromBToken(amount) * reserve.oraclePrice;
+        // TODO: change this to use the price in the db
+        lotValue += reserve.toAssetFromBToken(amount) * reserve.oraclePrice;
+      }
+      // Interest auctions are in underlying assets
+      else {
+        lotValue += (Number(amount) / 10 ** reserve.config.decimals) * reserve.oraclePrice;
+      }
+    } else if (assetId === APP_CONFIG.backstopTokenAddress) {
+      // Simulate singled sided withdraw to USDC
+      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      if (lpTokenValue !== undefined) {
+        lotValue += lpTokenValue;
+      }
+      // Approximate the value of the comet tokens if simulation fails
+      else {
+        const backstopToken = await sorobanHelper.loadBackstopToken();
+        lotValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
+      }
+    } else {
+      throw new Error(`Failed to value lot asset: ${assetId}`);
+    }
+  }
+
+  for (const [assetId, amount] of auctionData.bid) {
+    const reserve = reserves.get(assetId);
+    if (reserve !== undefined) {
+      effectiveLiabilities += reserve.toEffectiveAssetFromDToken(amount) * reserve.oraclePrice;
+      // TODO: change this to use the price in the db
+      bidValue += reserve.toAssetFromDToken(amount) * reserve.oraclePrice;
+    } else if (assetId === APP_CONFIG.backstopTokenAddress) {
+      // Simulate singled sided withdraw to USDC
+      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      if (lpTokenValue !== undefined) {
+        bidValue += lpTokenValue;
+      } else {
+        const backstopToken = await sorobanHelper.loadBackstopToken();
+        bidValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
+      }
+    } else {
+      throw new Error(`Failed to value bid asset: ${assetId}`);
+    }
+  }
+
+  return { effectiveCollateral, effectiveLiabilities, lotValue, bidValue };
 }

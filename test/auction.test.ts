@@ -1,11 +1,17 @@
 import { AuctionType } from '../src/utils/db.js';
 import { Keypair } from '@stellar/stellar-sdk';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
-import { buildFillRequests, calculateBlockFillAndPercent, scaleAuction } from '../src/auction.js';
+import {
+  buildFillRequests,
+  calculateAuctionValue,
+  calculateBlockFillAndPercent,
+  scaleAuction,
+} from '../src/auction.js';
 import { mockedFillerState, mockedPool } from './helpers/mocks.js';
 import { Filler } from '../src/utils/config.js';
 import { AuctionBid, BidderSubmissionType } from '../src/bidder_submitter.js';
 import { Request, RequestType } from '@blend-capital/blend-sdk';
+
 jest.mock('../src/utils/soroban_helper.js', () => {
   return {
     SorobanHelper: jest.fn().mockImplementation(() => {
@@ -64,7 +70,7 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(189);
+    expect(fillCalc.fillBlock).toEqual(312);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
@@ -85,7 +91,7 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(220);
+    expect(fillCalc.fillBlock).toEqual(343);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
@@ -109,7 +115,7 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(216);
+    expect(fillCalc.fillBlock).toEqual(339);
     expect(fillCalc.fillPercent).toEqual(50);
   });
 
@@ -136,7 +142,7 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(295);
+    expect(fillCalc.fillBlock).toEqual(418);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
@@ -177,7 +183,7 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(306);
+    expect(fillCalc.fillBlock).toEqual(429);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
@@ -219,8 +225,67 @@ describe('calculateBlockFillAndPercent', () => {
       auctionData,
       sorobanHelper
     );
-    expect(fillCalc.fillBlock).toEqual(258);
+    expect(fillCalc.fillBlock).toEqual(381);
     expect(fillCalc.fillPercent).toEqual(100);
+  });
+});
+
+describe('calculateAuctionValue', () => {
+  let sorobanHelper = new SorobanHelper();
+  it('test valuing user auction', async () => {
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1234_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 5678_0000000n],
+      ]),
+      block: 123,
+    };
+
+    let result = await calculateAuctionValue(AuctionType.Liquidation, auctionData, sorobanHelper);
+    expect(result.bidValue).toBeCloseTo(562.42);
+    expect(result.lotValue).toBeCloseTo(1242.29);
+    expect(result.effectiveCollateral).toBeCloseTo(1180.17);
+    expect(result.effectiveLiabilities).toBeCloseTo(749.89);
+  });
+
+  it('test valuing interest auction', async () => {
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1234_0000000n],
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 5678_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM', 12345678_0000000n],
+      ]),
+      block: 123,
+    };
+
+    let result = await calculateAuctionValue(AuctionType.Interest, auctionData, sorobanHelper);
+    expect(result.bidValue).toBeCloseTo(12345678_0000000 * 5);
+    expect(result.lotValue).toBeCloseTo(1795.72);
+    expect(result.effectiveCollateral).toBeCloseTo(0);
+    expect(result.effectiveLiabilities).toBeCloseTo(0);
+  });
+
+  it('test valuing bad debt auction', async () => {
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM', 12345678_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1234_0000000n],
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 5678_0000000n],
+      ]),
+      block: 123,
+    };
+
+    let result = await calculateAuctionValue(AuctionType.BadDebt, auctionData, sorobanHelper);
+    expect(result.bidValue).toBeCloseTo(1808.66);
+    expect(result.lotValue).toBeCloseTo(12345678_0000000 * 5);
+    expect(result.effectiveCollateral).toBeCloseTo(0);
+    expect(result.effectiveLiabilities).toBeCloseTo(2061.73);
   });
 });
 
@@ -545,7 +610,7 @@ describe('scaleAuction', () => {
       ]),
       block: 123,
     };
-    let scaledAuction = scaleAuction(auctionData, 0, 100);
+    let scaledAuction = scaleAuction(auctionData, 123, 100);
     expect(scaledAuction.block).toEqual(123);
     expect(scaledAuction.bid.size).toEqual(2);
     expect(scaledAuction.bid.get('asset1')).toEqual(100_0000000n);
@@ -553,7 +618,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.size).toEqual(0);
 
     // 100 blocks -> 100 percent, validate lot is rounded down
-    scaledAuction = scaleAuction(auctionData, 100, 100);
+    scaledAuction = scaleAuction(auctionData, 223, 100);
     expect(scaledAuction.block).toEqual(223);
     expect(scaledAuction.bid.size).toEqual(2);
     expect(scaledAuction.bid.get('asset1')).toEqual(100_0000000n);
@@ -563,7 +628,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.get('asset3')).toEqual(2_5000000n);
 
     // 100 blocks -> 50 percent, validate bid is rounded up
-    scaledAuction = scaleAuction(auctionData, 100, 50);
+    scaledAuction = scaleAuction(auctionData, 223, 50);
     expect(scaledAuction.block).toEqual(223);
     expect(scaledAuction.bid.size).toEqual(2);
     expect(scaledAuction.bid.get('asset1')).toEqual(50_0000000n);
@@ -573,7 +638,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.get('asset3')).toEqual(1_2500000n);
 
     // 200 blocks -> 100 percent (is same)
-    scaledAuction = scaleAuction(auctionData, 200, 100);
+    scaledAuction = scaleAuction(auctionData, 323, 100);
     expect(scaledAuction.block).toEqual(323);
     expect(scaledAuction.bid.size).toEqual(2);
     expect(scaledAuction.bid.get('asset1')).toEqual(100_0000000n);
@@ -583,7 +648,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.get('asset3')).toEqual(5_0000001n);
 
     // 200 blocks -> 75 percent, validate bid is rounded up and lot is rounded down
-    scaledAuction = scaleAuction(auctionData, 200, 75);
+    scaledAuction = scaleAuction(auctionData, 323, 75);
     expect(scaledAuction.block).toEqual(323);
     expect(scaledAuction.bid.size).toEqual(2);
     expect(scaledAuction.bid.get('asset1')).toEqual(75_0000000n);
@@ -593,7 +658,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.get('asset3')).toEqual(3_7500000n);
 
     // 300 blocks -> 100 percent
-    scaledAuction = scaleAuction(auctionData, 300, 100);
+    scaledAuction = scaleAuction(auctionData, 423, 100);
     expect(scaledAuction.block).toEqual(423);
     expect(scaledAuction.bid.size).toEqual(2);
     expect(scaledAuction.bid.get('asset1')).toEqual(50_0000000n);
@@ -603,7 +668,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.get('asset3')).toEqual(5_0000001n);
 
     // 400 blocks -> 100 percent
-    scaledAuction = scaleAuction(auctionData, 400, 100);
+    scaledAuction = scaleAuction(auctionData, 523, 100);
     expect(scaledAuction.block).toEqual(523);
     expect(scaledAuction.bid.size).toEqual(0);
     expect(scaledAuction.lot.size).toEqual(2);
@@ -611,7 +676,7 @@ describe('scaleAuction', () => {
     expect(scaledAuction.lot.get('asset3')).toEqual(5_0000001n);
 
     // 500 blocks -> 100 percent (unchanged)
-    scaledAuction = scaleAuction(auctionData, 500, 100);
+    scaledAuction = scaleAuction(auctionData, 623, 100);
     expect(scaledAuction.block).toEqual(623);
     expect(scaledAuction.bid.size).toEqual(0);
     expect(scaledAuction.lot.size).toEqual(2);
@@ -626,21 +691,21 @@ describe('scaleAuction', () => {
       block: 123,
     };
     // 1 blocks -> 10 percent
-    let scaledAuction = scaleAuction(auctionData, 1, 10);
+    let scaledAuction = scaleAuction(auctionData, 124, 10);
     expect(scaledAuction.block).toEqual(124);
     expect(scaledAuction.bid.size).toEqual(1);
     expect(scaledAuction.bid.get('asset1')).toEqual(1n);
     expect(scaledAuction.lot.size).toEqual(0);
 
     // 399 blocks -> 10 percent
-    scaledAuction = scaleAuction(auctionData, 399, 10);
+    scaledAuction = scaleAuction(auctionData, 522, 10);
     expect(scaledAuction.block).toEqual(522);
     expect(scaledAuction.bid.size).toEqual(1);
     expect(scaledAuction.bid.get('asset1')).toEqual(1n);
     expect(scaledAuction.lot.size).toEqual(0);
 
     // 399 blocks -> 100 percent
-    scaledAuction = scaleAuction(auctionData, 399, 100);
+    scaledAuction = scaleAuction(auctionData, 522, 100);
     expect(scaledAuction.block).toEqual(522);
     expect(scaledAuction.bid.size).toEqual(1);
     expect(scaledAuction.bid.get('asset1')).toEqual(1n);

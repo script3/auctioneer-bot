@@ -48,7 +48,7 @@ async function main() {
               auction.auction_type
             );
             if (auctionData === undefined) {
-              logger.error(`Failed to load auction data for ${stringify(auction)}`);
+              db.deleteAuctionEntry(auction.user_id, auction.auction_type);
               continue;
             }
             const fillCalculation = await calculateBlockFillAndPercent(
@@ -57,7 +57,7 @@ async function main() {
               auctionData,
               sorobanHelper
             );
-            auction.fill_block = fillCalculation.fillBlock + auctionData.block;
+            auction.fill_block = fillCalculation.fillBlock;
             db.setAuctionEntry(auction);
           }
 
