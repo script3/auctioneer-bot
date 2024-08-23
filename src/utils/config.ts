@@ -12,6 +12,12 @@ export interface Filler {
   supportedLot: string[];
 }
 
+export interface PriceSource {
+  assetId: string;
+  type: 'coinbase' | 'binance';
+  symbol: string;
+}
+
 export interface AppConfig {
   rpcURL: string;
   networkPassphrase: string;
@@ -22,6 +28,7 @@ export interface AppConfig {
   blndAddress: string;
   keypair: Keypair;
   fillers: Filler[];
+  priceSources: PriceSource[];
   slackWebhook: string | undefined;
 }
 
@@ -47,6 +54,7 @@ function validateAppConfig(config: any): boolean {
     typeof config.blndAddress !== 'string' ||
     typeof config.keypair !== 'string' ||
     !Array.isArray(config.fillers) ||
+    !Array.isArray(config.priceSources) ||
     (config.slackWebhook !== undefined && typeof config.slackWebhook !== 'string')
   ) {
     return false;
@@ -54,7 +62,7 @@ function validateAppConfig(config: any): boolean {
 
   config.keypair = Keypair.fromSecret(config.keypair);
 
-  return config.fillers.every(validateFiller);
+  return config.fillers.every(validateFiller) && config.priceSources.every(validatePriceSource);
 }
 
 function validateFiller(filler: any): boolean {
@@ -76,5 +84,21 @@ function validateFiller(filler: any): boolean {
     filler.keypair = Keypair.fromSecret(filler.keypair);
     return true;
   }
+  return false;
+}
+
+function validatePriceSource(priceSource: any): boolean {
+  if (typeof priceSource !== 'object' || priceSource === null) {
+    return false;
+  }
+
+  if (
+    typeof priceSource.assetId === 'string' &&
+    (priceSource.type === 'binance' || priceSource.type === 'coinbase') &&
+    typeof priceSource.symbol === 'string'
+  ) {
+    return true;
+  }
+
   return false;
 }

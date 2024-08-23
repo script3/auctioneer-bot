@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_health_factor ON users(health_factor);
 CREATE TABLE IF NOT EXISTS prices (
     asset_id TEXT PRIMARY KEY NOT NULL,
     price REAL NOT NULL,
-    updated INTEGER NOT NULL
+    timestamp INTEGER NOT NULL
 );
 
 -- Table to store ongoing auctions

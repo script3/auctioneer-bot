@@ -43,6 +43,15 @@ export interface AuctionEntry {
   updated: number;
 }
 
+export interface PriceEntry {
+  // The asset's id
+  asset_id: string;
+  // The asset's price
+  price: number;
+  // The timestamp (in ms since epoch) this price was last updated
+  timestamp: number;
+}
+
 export interface FilledAuctionEntry {
   // The transaction hash
   tx_hash: string;
@@ -64,12 +73,12 @@ export interface FilledAuctionEntry {
   est_profit: number;
   // The block the auction was filled
   fill_block: number;
-  // The timestamp the auction was filled
+  // The timestamp (in s since epoch) the auction was filled
   timestamp: string;
 }
 
 export class AuctioneerDatabase {
-  private db: Database.Database;
+  db: Database.Database;
 
   constructor(db: Database.Database) {
     this.db = db;
@@ -124,6 +133,49 @@ export class AuctioneerDatabase {
         | undefined;
     } catch (error: any) {
       logger.error(`Error getting status entry: ${error}`);
+      throw error;
+    }
+  }
+
+  //********** Prices Table **********//
+
+  /**
+   * Set multiple price entries in the database in a single transaction.
+   * If a price entry already exists, it will be replaced.
+   * @param entries - An array of PriceEntry objects to set
+   * @returns The result of the sql operation
+   */
+  setPriceEntries(entries: PriceEntry[]) {
+    try {
+      const insertStatement = this.db.prepare(
+        'INSERT OR REPLACE INTO prices (asset_id, price, timestamp) VALUES (?, ?, ?)'
+      );
+
+      const priceEntryTx = this.db.transaction((priceEntries: PriceEntry[]) => {
+        for (const entry of priceEntries) {
+          insertStatement.run(entry.asset_id, entry.price, entry.timestamp);
+        }
+      });
+
+      priceEntryTx(entries);
+    } catch (error: any) {
+      logger.error(`Error setting price entries: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a price entry in the database.
+   * @param assetId - The address of the asset to get the price for
+   * @returns The result of the sql operation
+   */
+  getPriceEntry(assetId: string): PriceEntry | undefined {
+    try {
+      return this.db.prepare('SELECT * FROM prices WHERE asset_id = ?').get(assetId) as
+        | PriceEntry
+        | undefined;
+    } catch (error: any) {
+      logger.error(`Error getting price entry: ${error}`);
       throw error;
     }
   }
