@@ -1,19 +1,24 @@
 import {
   AuctionData,
   BackstopToken,
+  ContractError,
   Network,
+  parseError,
   Pool,
   PoolContract,
   PoolUser,
 } from '@blend-capital/blend-sdk';
 import {
   Account,
+  Address,
+  BASE_FEE,
   Contract,
   Keypair,
   nativeToScVal,
   scValToNative,
   SorobanRpc,
   TransactionBuilder,
+  xdr,
 } from '@stellar/stellar-sdk';
 import { APP_CONFIG } from './config.js';
 import { logger } from './logger.js';
@@ -51,23 +56,39 @@ export class SorobanHelper {
 
   async loadAuction(userId: string, auctionType: number): Promise<AuctionData | undefined> {
     try {
-      let poolClient = new PoolContract(APP_CONFIG.poolAddress);
-      let op = poolClient.call(
-        'get_auction',
-        ...[nativeToScVal(auctionType), nativeToScVal(userId, { type: 'address' })]
-      );
-      let account = new Account(userId, '123');
-      let tx = new TransactionBuilder(account).addOperation(op).build();
       let rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
-
-      let result = await rpc.simulateTransaction(tx);
-      if (SorobanRpc.Api.isSimulationSuccess(result) && result.result?.retval) {
-        return scValToNative(result.result.retval) as AuctionData;
+      const res: xdr.ScVal[] = [
+        xdr.ScVal.scvSymbol('Auction'),
+        xdr.ScVal.scvMap([
+          new xdr.ScMapEntry({
+            key: xdr.ScVal.scvSymbol('auct_type'),
+            val: xdr.ScVal.scvU32(auctionType),
+          }),
+          new xdr.ScMapEntry({
+            key: xdr.ScVal.scvSymbol('user'),
+            val: Address.fromString(userId).toScVal(),
+          }),
+        ]),
+      ];
+      const ledgerKey = xdr.LedgerKey.contractData(
+        new xdr.LedgerKeyContractData({
+          contract: Address.fromString(APP_CONFIG.poolAddress).toScAddress(),
+          key: xdr.ScVal.scvVec(res),
+          durability: xdr.ContractDataDurability.temporary(),
+        })
+      );
+      let ledgerData = await rpc.getLedgerEntries(ledgerKey);
+      if (ledgerData.entries.length === 0) {
+        return undefined;
       }
-      return undefined;
+      let auction = PoolContract.spec.funcResToNative(
+        'get_auction',
+        ledgerData.entries[0].val.contractData().val()
+      );
+      return auction as AuctionData;
     } catch (e) {
-      logger.error(`Error fetching liquidation: ${e}`);
-      return undefined;
+      logger.error(`Error loading auction: ${e}`);
+      throw e;
     }
   }
 
@@ -93,12 +114,18 @@ export class SorobanHelper {
         ]
       );
       let account = new Account(Keypair.random().publicKey(), '123');
-      let tx = new TransactionBuilder(account).addOperation(op).build();
+      let tx = new TransactionBuilder(account, {
+        networkPassphrase: this.network.passphrase,
+        fee: BASE_FEE,
+        timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 5 * 60 * 1000 },
+      })
+        .addOperation(op)
+        .build();
       let rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
 
       let result = await rpc.simulateTransaction(tx);
       if (SorobanRpc.Api.isSimulationSuccess(result) && result.result?.retval) {
-        return (scValToNative(result.result.retval) as number) / 1e7;
+        return scValToNative(result.result.retval) as number;
       }
       return undefined;
     } catch (e) {
@@ -112,12 +139,18 @@ export class SorobanHelper {
       let contract = new Contract(tokenId);
       let op = contract.call('balance', ...[nativeToScVal(userId, { type: 'address' })]);
       let account = new Account(Keypair.random().publicKey(), '123');
-      let tx = new TransactionBuilder(account).addOperation(op).build();
+      let tx = new TransactionBuilder(account, {
+        networkPassphrase: this.network.passphrase,
+        fee: BASE_FEE,
+        timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 5 * 60 * 1000 },
+      })
+        .addOperation(op)
+        .build();
       let rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
 
       let result = await rpc.simulateTransaction(tx);
       if (SorobanRpc.Api.isSimulationSuccess(result) && result.result?.retval) {
-        return (scValToNative(result.result.retval) as number) / 1e7;
+        return Number(scValToNative(result.result.retval));
       } else {
         return 0;
       }
@@ -125,5 +158,54 @@ export class SorobanHelper {
       logger.error(`Error fetching balance: ${e}`);
       return 0;
     }
+  }
+
+  async submitTransaction<T>(
+    operation: string,
+    keypair: Keypair,
+    parser: (xdr_string: string) => T
+  ): Promise<SorobanRpc.Api.GetSuccessfulTransactionResponse & { txHash: string }> {
+    const rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
+    const curr_time = Date.now();
+    const account = await rpc.getAccount(keypair.publicKey());
+    const tx = new TransactionBuilder(account, {
+      networkPassphrase: this.network.passphrase,
+      fee: BASE_FEE,
+      timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 5 * 60 * 1000 },
+    })
+      .addOperation(xdr.Operation.fromXDR(operation, 'base64'))
+      .build();
+
+    const simResult = await rpc.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationSuccess(simResult)) {
+      let assembledTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+      assembledTx.sign(keypair);
+      let txResponse = await rpc.sendTransaction(assembledTx);
+      while (txResponse.status === 'TRY_AGAIN_LATER' && Date.now() - curr_time < 20000) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        txResponse = await rpc.sendTransaction(assembledTx);
+      }
+      if (txResponse.status !== 'PENDING') {
+        const error = parseError(txResponse);
+        logger.error('Transaction failed to send: ' + txResponse.hash + ' ' + error);
+        throw error;
+      }
+
+      let get_tx_response = await rpc.getTransaction(txResponse.hash);
+      while (get_tx_response.status === 'NOT_FOUND') {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        get_tx_response = await rpc.getTransaction(txResponse.hash);
+      }
+
+      if (get_tx_response.status !== 'SUCCESS') {
+        const error = parseError(get_tx_response);
+        logger.error('Tx Failed: ', error);
+        throw error;
+      }
+      logger.info('Transaction successfully submitted: ' + get_tx_response);
+      return { ...get_tx_response, txHash: txResponse.hash };
+    }
+    const error = parseError(simResult);
+    throw error;
   }
 }

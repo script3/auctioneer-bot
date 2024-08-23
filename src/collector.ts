@@ -12,6 +12,7 @@ import { PoolEventHandler } from './pool_event_handler.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
+import { stringify } from './utils/json.js';
 
 export async function runCollector(
   worker: ChildProcess,
@@ -83,7 +84,7 @@ export async function runCollector(
             timestamp: Date.now(),
             event: blendPoolEvent,
           };
-          logger.info(`Processing pool event: ${JSON.stringify(poolEvent)}`);
+          logger.info(`Processing pool event: ${stringify(poolEvent)}`);
           await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
         }
       }

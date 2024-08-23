@@ -27,7 +27,6 @@ async function main() {
         logger.info(`Processing for ledger: ${nextLedger}`);
         const auctions = db.getAllAuctionEntries();
         const sorobanHelper = new SorobanHelper();
-        const pool = await sorobanHelper.loadPool();
 
         for (let auction of auctions) {
           const filler = APP_CONFIG.fillers.find((f) => f.keypair.publicKey() === auction.filler);
@@ -41,18 +40,18 @@ async function main() {
             continue;
           }
 
-          let ledgersToFill = nextLedger - auction.fill_block;
+          const ledgersToFill = auction.fill_block - nextLedger;
           if (auction.fill_block === 0 || ledgersToFill <= 5 || ledgersToFill % 10 === 0) {
             // recalculate the auction
-            let auctionData = await sorobanHelper.loadAuction(
+            const auctionData = await sorobanHelper.loadAuction(
               auction.user_id,
               auction.auction_type
             );
             if (auctionData === undefined) {
-              logger.error(`Failed to load auction data for ${stringify(auction)}`);
+              db.deleteAuctionEntry(auction.user_id, auction.auction_type);
               continue;
             }
-            let fillCalculation = await calculateBlockFillAndPercent(
+            const fillCalculation = await calculateBlockFillAndPercent(
               filler,
               auction.auction_type,
               auctionData,
