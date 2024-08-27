@@ -3,7 +3,7 @@ import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
   isLiquidatable,
   calculateLiquidationPercent,
-  scanForLiquidations,
+  scanUsers,
 } from '../src/liquidation_creator.js';
 import { inMemoryAuctioneerDb, mockedFillerState } from './helpers/mocks';
 import { AuctioneerDatabase } from '../src/utils/db';
@@ -18,30 +18,17 @@ describe('isLiquidatable', () => {
     user.positionEstimates.totalEffectiveLiabilities = 1000;
   });
 
-  it('returns true if the user is liquidatable and not in liquidation auction', async () => {
-    jest.spyOn(sorobanHelper, 'loadAuction').mockResolvedValue(undefined);
+  it('returns true if the user health factor is below .99', async () => {
     user.positionEstimates.totalEffectiveCollateral = 1000;
-    user.positionEstimates.totalEffectiveLiabilities = 1100;
-    const result = await isLiquidatable(user, sorobanHelper);
+    user.positionEstimates.totalEffectiveLiabilities = 1011;
+    const result = await isLiquidatable(user);
     expect(result).toBe(true);
   });
 
-  it('returns false if the user is not liquidatable', async () => {
-    jest.spyOn(sorobanHelper, 'loadAuction').mockResolvedValue(undefined);
-    const result = await isLiquidatable(user, sorobanHelper);
-    expect(result).toBe(false);
-  });
-
-  it('returns false if the user is already in a liquidation auction', async () => {
-    const auctionData: AuctionData = {
-      bid: new Map<string, bigint>(),
-      block: 0,
-      lot: new Map<string, bigint>(),
-    };
-    jest.spyOn(sorobanHelper, 'loadAuction').mockResolvedValue(auctionData);
+  it('returns false if the user health facotr is above .99', async () => {
     user.positionEstimates.totalEffectiveCollateral = 1000;
-    user.positionEstimates.totalEffectiveLiabilities = 1100;
-    const result = await isLiquidatable(user, sorobanHelper);
+    user.positionEstimates.totalEffectiveLiabilities = 1010;
+    const result = await isLiquidatable(user);
     expect(result).toBe(false);
   });
 });
@@ -86,7 +73,7 @@ describe('calculateLiquidationPercent', () => {
   });
 });
 
-describe('scanForLiquidations', () => {
+describe('scanUsers', () => {
   let db: AuctioneerDatabase;
   let sorobanHelper: SorobanHelper;
 
@@ -95,7 +82,7 @@ describe('scanForLiquidations', () => {
     sorobanHelper = new SorobanHelper();
   });
 
-  it('should create a liquidation auction for liquidatable users', async () => {
+  it('should create a work submission for liquidatable users', async () => {
     mockedFillerState.positionEstimates.totalEffectiveCollateral = 1000;
     mockedFillerState.positionEstimates.totalEffectiveLiabilities = 1100;
     mockedFillerState.positionEstimates.totalBorrowed = 1500;
@@ -111,9 +98,31 @@ describe('scanForLiquidations', () => {
     });
     jest.spyOn(sorobanHelper, 'loadUser').mockResolvedValue(mockedFillerState);
     jest.spyOn(sorobanHelper, 'loadAuction').mockResolvedValue(undefined);
-    let spy = jest.spyOn(sorobanHelper, 'submitTransaction');
 
-    await scanForLiquidations(db, sorobanHelper);
-    expect(spy).toHaveBeenCalledTimes(1);
+    let liquidations = await scanUsers(db, sorobanHelper);
+    expect(liquidations.length).toBe(1);
+  });
+
+  it('should not create a work submission for users with existing liquidation auctions', async () => {
+    mockedFillerState.positionEstimates.totalEffectiveCollateral = 1000;
+    mockedFillerState.positionEstimates.totalEffectiveLiabilities = 1100;
+    mockedFillerState.positionEstimates.totalBorrowed = 1500;
+    mockedFillerState.positionEstimates.totalSupplied = 2000;
+    db.setUserEntry({
+      user_id: mockedFillerState.user,
+      health_factor:
+        mockedFillerState.positionEstimates.totalEffectiveCollateral /
+        mockedFillerState.positionEstimates.totalEffectiveLiabilities,
+      collateral: new Map(),
+      liabilities: new Map(),
+      updated: 123,
+    });
+    jest.spyOn(sorobanHelper, 'loadUser').mockResolvedValue(mockedFillerState);
+    jest
+      .spyOn(sorobanHelper, 'loadAuction')
+      .mockResolvedValue({ bid: new Map(), lot: new Map(), block: 123 });
+
+    let liquidations = await scanUsers(db, sorobanHelper);
+    expect(liquidations.length).toBe(0);
   });
 });

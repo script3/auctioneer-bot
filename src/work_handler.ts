@@ -1,10 +1,12 @@
 import { AppEvent, EventType } from './events.js';
-import { scanForLiquidations } from './liquidation_creator.js';
+import { scanUsers } from './liquidation_creator.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
+import { WorkSubmissionType, WorkSubmitter } from './work_submitter.js';
+import { APP_CONFIG } from './utils/config.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -14,11 +16,10 @@ const RETRY_DELAY = 1000;
  */
 export class WorkHandler {
   private db: AuctioneerDatabase;
-  private sorobanHelper: SorobanHelper;
-
-  constructor(db: AuctioneerDatabase, sorobanHelper: SorobanHelper) {
+  private submissionQueue: WorkSubmitter;
+  constructor(db: AuctioneerDatabase, submissionQueue: WorkSubmitter) {
     this.db = db;
-    this.sorobanHelper = sorobanHelper;
+    this.submissionQueue = submissionQueue;
   }
 
   /**
@@ -66,7 +67,10 @@ export class WorkHandler {
         break;
       case EventType.LIQ_SCAN:
         const sorobanHelper = new SorobanHelper();
-        await scanForLiquidations(this.db, sorobanHelper);
+        const liquidations = await scanUsers(this.db, sorobanHelper);
+        liquidations.forEach((liquidation) => {
+          this.submissionQueue.submit(liquidation);
+        });
         break;
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);
