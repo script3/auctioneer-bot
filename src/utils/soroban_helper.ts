@@ -162,8 +162,7 @@ export class SorobanHelper {
 
   async submitTransaction<T>(
     operation: string,
-    keypair: Keypair,
-    parser: (xdr_string: string) => T
+    keypair: Keypair
   ): Promise<SorobanRpc.Api.GetSuccessfulTransactionResponse & { txHash: string }> {
     const rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
     const curr_time = Date.now();
