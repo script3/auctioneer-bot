@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AuctioneerDatabase } from '../../src/utils/db';
 import { parse } from '../../src/utils/json';
+import { Keypair } from '@stellar/stellar-sdk';
 
 const mockPoolPath = path.resolve(__dirname, 'mock-pool.json');
 let pool = parse<Pool>(fs.readFileSync(mockPoolPath, 'utf8'));
@@ -27,7 +28,7 @@ pool.reserves.forEach((reserve, assetId, map) => {
 export let mockedPool = pool;
 
 export let mockedFillerState = {
-  user: '',
+  user: Keypair.random().publicKey(),
   positions: {
     liabilities: new Map<number, bigint>(),
     collateral: new Map<number, bigint>(),

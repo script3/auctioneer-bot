@@ -1,4 +1,5 @@
 import { AppEvent, EventType } from './events.js';
+import { scanForLiquidations } from './liquidation_creator.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
@@ -62,6 +63,10 @@ export class WorkHandler {
     switch (appEvent.type) {
       case EventType.PRICE_UPDATE:
         await setPrices(this.db);
+        break;
+      case EventType.LIQ_SCAN:
+        const sorobanHelper = new SorobanHelper();
+        await scanForLiquidations(this.db, sorobanHelper);
         break;
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);

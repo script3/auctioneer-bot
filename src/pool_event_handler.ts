@@ -60,13 +60,13 @@ export class PoolEventHandler {
    * @param poolEvent - The pool event to handle
    */
   async handlePoolEvent(poolEvent: PoolEventEvent): Promise<void> {
+    const pool = await this.sorobanHelper.loadPool();
     switch (poolEvent.event.eventType) {
       case PoolEventType.SupplyCollateral:
       case PoolEventType.WithdrawCollateral:
       case PoolEventType.Borrow:
       case PoolEventType.Repay: {
         // update the user in the db
-        const pool = await this.sorobanHelper.loadPool();
         const user = await this.sorobanHelper.loadUser(poolEvent.event.from);
         if (user.positions.liabilities.size !== 0) {
           // user has liabilities, update db entry
@@ -178,6 +178,27 @@ export class PoolEventHandler {
               `Auction filled completely by ${poolEvent.event.from}. Removed auction type ${poolEvent.event.auctionType} for user ${poolEvent.event.user}`
             );
           }
+          const user = await this.sorobanHelper.loadUser(poolEvent.event.user);
+          let collateralAddress = new Map<string, bigint>();
+          for (let [assetIndex, amount] of user.positions.collateral) {
+            const asset = pool.config.reserveList[assetIndex];
+            collateralAddress.set(asset, amount);
+          }
+          let liabilitiesAddress = new Map<string, bigint>();
+          for (let [assetIndex, amount] of user.positions.liabilities) {
+            const asset = pool.config.reserveList[assetIndex];
+            liabilitiesAddress.set(asset, amount);
+          }
+          const new_entry: UserEntry = {
+            user_id: poolEvent.event.from,
+            health_factor:
+              user.positionEstimates.totalEffectiveCollateral /
+              user.positionEstimates.totalEffectiveLiabilities,
+            collateral: collateralAddress,
+            liabilities: liabilitiesAddress,
+            updated: pool.latestLedger,
+          };
+          this.db.setUserEntry(new_entry);
         }
       }
       default: {
