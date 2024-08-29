@@ -69,7 +69,7 @@ export class WorkHandler {
         const sorobanHelper = new SorobanHelper();
         const liquidations = await scanUsers(this.db, sorobanHelper);
         liquidations.forEach((liquidation) => {
-          this.submissionQueue.submit(liquidation);
+          this.submissionQueue.addSubmission(liquidation, 2);
         });
         break;
       default:
