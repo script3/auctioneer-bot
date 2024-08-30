@@ -1,12 +1,13 @@
 import {
   AuctionData,
   BackstopToken,
-  ContractError,
   Network,
   parseError,
   Pool,
   PoolContract,
+  PoolOracle,
   PoolUser,
+  PositionsEstimate,
 } from '@blend-capital/blend-sdk';
 import {
   Account,
@@ -25,7 +26,6 @@ import { logger } from './logger.js';
 
 export class SorobanHelper {
   network: Network;
-  timestamp: number;
   private pool_cache: Pool | undefined;
 
   constructor() {
@@ -36,7 +36,6 @@ export class SorobanHelper {
         allowHttp: true,
       },
     };
-    this.timestamp = Math.floor(Date.now() / 1000);
     this.pool_cache = undefined;
   }
 
@@ -44,14 +43,38 @@ export class SorobanHelper {
     if (this.pool_cache) {
       return this.pool_cache;
     } else {
-      this.pool_cache = await Pool.load(this.network, APP_CONFIG.poolAddress, this.timestamp);
+      this.pool_cache = await Pool.load(this.network, APP_CONFIG.poolAddress);
       return this.pool_cache;
     }
   }
 
   async loadUser(address: string): Promise<PoolUser> {
     const pool = await this.loadPool();
-    return await pool.loadUser(this.network, address);
+    return await pool.loadUser(address);
+  }
+
+  async loadPoolOracle(): Promise<PoolOracle> {
+    try {
+      const pool = await this.loadPool();
+      return await pool.loadOracle();
+    } catch (e) {
+      logger.error(`Error loading pool oracle: ${e}`);
+      throw e;
+    }
+  }
+
+  async loadUserPositionEstimate(
+    address: string
+  ): Promise<{ estimate: PositionsEstimate; user: PoolUser }> {
+    try {
+      const pool = await this.loadPool();
+      const user = await pool.loadUser(address);
+      const poolOracle = await pool.loadOracle();
+      return { estimate: PositionsEstimate.build(pool, poolOracle, user.positions), user };
+    } catch (e) {
+      logger.error(`Error loading user position estimate: ${e}`);
+      throw e;
+    }
   }
 
   async loadAuction(userId: string, auctionType: number): Promise<AuctionData | undefined> {

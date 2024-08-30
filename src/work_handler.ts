@@ -5,8 +5,7 @@ import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
-import { WorkSubmissionType, WorkSubmitter } from './work_submitter.js';
-import { APP_CONFIG } from './utils/config.js';
+import { WorkSubmitter } from './work_submitter.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;

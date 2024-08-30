@@ -176,7 +176,7 @@ export class AuctioneerDatabase {
         | undefined;
     } catch (error: any) {
       logger.error(`Error getting price entry: ${error}`);
-      throw error;
+      return undefined;
     }
   }
 

@@ -23,7 +23,7 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "@blend-capital/blend-sdk": "^1.3.2",
+    "@blend-capital/blend-sdk": "^2.0.1",
     "@stellar/stellar-sdk": "^12.2.0",
     "better-sqlite3": "^11.1.2",
     "winston": "^3.13.1",

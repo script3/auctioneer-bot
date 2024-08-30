@@ -67,7 +67,8 @@ export class PoolEventHandler {
       case PoolEventType.Borrow:
       case PoolEventType.Repay: {
         // update the user in the db
-        const user = await this.sorobanHelper.loadUser(poolEvent.event.from);
+        const { estimate: userPositionsEstimate, user } =
+          await this.sorobanHelper.loadUserPositionEstimate(poolEvent.event.from);
         if (user.positions.liabilities.size !== 0) {
           // user has liabilities, update db entry
           let collateralAddress = new Map<string, bigint>();
@@ -83,11 +84,11 @@ export class PoolEventHandler {
           const new_entry: UserEntry = {
             user_id: poolEvent.event.from,
             health_factor:
-              user.positionEstimates.totalEffectiveCollateral /
-              user.positionEstimates.totalEffectiveLiabilities,
+              userPositionsEstimate.totalEffectiveCollateral /
+              userPositionsEstimate.totalEffectiveLiabilities,
             collateral: collateralAddress,
             liabilities: liabilitiesAddress,
-            updated: pool.latestLedger,
+            updated: poolEvent.event.ledger,
           };
           let result = this.db.setUserEntry(new_entry);
           logger.info(`Updated user entry: ${stringify(result)}`);
@@ -178,7 +179,8 @@ export class PoolEventHandler {
               `Auction filled completely by ${poolEvent.event.from}. Removed auction type ${poolEvent.event.auctionType} for user ${poolEvent.event.user}`
             );
           }
-          const user = await this.sorobanHelper.loadUser(poolEvent.event.user);
+          const { estimate: userPositionsEstimate, user } =
+            await this.sorobanHelper.loadUserPositionEstimate(poolEvent.event.user);
           let collateralAddress = new Map<string, bigint>();
           for (let [assetIndex, amount] of user.positions.collateral) {
             const asset = pool.config.reserveList[assetIndex];
@@ -192,11 +194,11 @@ export class PoolEventHandler {
           const new_entry: UserEntry = {
             user_id: poolEvent.event.from,
             health_factor:
-              user.positionEstimates.totalEffectiveCollateral /
-              user.positionEstimates.totalEffectiveLiabilities,
+              userPositionsEstimate.totalEffectiveCollateral /
+              userPositionsEstimate.totalEffectiveLiabilities,
             collateral: collateralAddress,
             liabilities: liabilitiesAddress,
-            updated: pool.latestLedger,
+            updated: poolEvent.event.ledger,
           };
           this.db.setUserEntry(new_entry);
         }

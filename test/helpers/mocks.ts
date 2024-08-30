@@ -1,4 +1,12 @@
-import { Pool, PoolUserEmissionData, Reserve } from '@blend-capital/blend-sdk';
+import {
+  Pool,
+  PoolOracle,
+  PoolUser,
+  PoolUserEmissionData,
+  PriceData,
+  Reserve,
+  PositionsEstimate,
+} from '@blend-capital/blend-sdk';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -12,46 +20,65 @@ pool.reserves.forEach((reserve, assetId, map) => {
   map.set(
     assetId,
     new Reserve(
+      pool.id,
       assetId,
       reserve.tokenMetadata,
-      reserve.poolBalance,
       reserve.config,
       reserve.data,
       reserve.borrowEmissions,
       reserve.supplyEmissions,
-      reserve.oraclePrice,
-      reserve.estimates,
+      reserve.borrowApr,
+      reserve.supplyApr,
       reserve.latestLedger
     )
   );
 });
 export let mockedPool = pool;
 
-export let mockedFillerState = {
-  user: Keypair.random().publicKey(),
-  positions: {
+export let mockPoolUser = new PoolUser(
+  Keypair.random().publicKey(),
+  {
     liabilities: new Map<number, bigint>(),
     collateral: new Map<number, bigint>(),
     supply: new Map<number, bigint>(),
   },
-  emissions: new Map<number, PoolUserEmissionData>(),
-  positionEstimates: {
-    liabilities: new Map<string, number>(),
-    collateral: new Map<string, number>(),
-    supply: new Map<string, number>(),
-    totalBorrowed: 0,
-    totalSupplied: 0,
-    totalEffectiveLiabilities: 1000,
-    totalEffectiveCollateral: 25000,
-    borrowCap: 0,
-    borrowLimit: 0,
-    netApr: 0,
-    supplyApr: 0,
+  new Map<number, PoolUserEmissionData>()
+);
 
-    borrowApr: 0,
-  },
-  emissionEstimates: {} as any,
-  latestLedger: 0,
+export let mockPoolOracle = new PoolOracle(
+  'CATKK5ZNJCKQQWTUWIUFZMY6V6MOQUGSTFSXMNQZHVJHYF7GVV36FB3Y',
+  new Map<string, PriceData>([
+    [
+      'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
+      { price: BigInt(9899585234193), timestamp: 1724949300 },
+    ],
+    [
+      'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
+      { price: BigInt(99969142646062), timestamp: 1724949300 },
+    ],
+    [
+      'CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV',
+      { price: BigInt(109278286319197), timestamp: 1724949300 },
+    ],
+    [
+      'CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK',
+      { price: BigInt(64116899991), timestamp: 1724950800 },
+    ],
+  ]),
+  14,
+  53255053
+);
+
+export let mockPoolUserEstimate: PositionsEstimate = {
+  totalBorrowed: 0,
+  totalSupplied: 0,
+  totalEffectiveLiabilities: 1000,
+  totalEffectiveCollateral: 25000,
+  borrowCap: 0,
+  borrowLimit: 0,
+  netApr: 0,
+  supplyApr: 0,
+  borrowApr: 0,
 };
 
 export function inMemoryAuctioneerDb(): AuctioneerDatabase {
