@@ -61,9 +61,10 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
 
   onDrop(submission: WorkSubmission): void {
     // TODO: Send slack alert for dropped submission
-    // TODO: Is logging enough for dropped submissions or do they need a seperate record?
     switch (submission.type) {
       case WorkSubmissionType.LiquidateUser:
+        logger.error(`Dropped liquidation for user: ${submission.user}`);
+        break;
     }
   }
 }
