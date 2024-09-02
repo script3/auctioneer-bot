@@ -20,7 +20,7 @@ echo "Database initialized."
 
 # Make a directory to store the logs at /app/data/logs if it does not exist
 if ! test -d ./data/logs; then
-  mkdir =p ./data/logs
+  mkdir ./data/logs
   echo "Created logs directory."
 fi
 
