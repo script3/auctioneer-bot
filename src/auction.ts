@@ -270,6 +270,7 @@ export async function calculateAuctionValue(
     const reserve = reserves.get(assetId);
     if (reserve !== undefined) {
       const oraclePrice = poolOracle.getPriceFloat(assetId);
+      const dbPrice = db.getPriceEntry(assetId)?.price;
       if (oraclePrice === undefined) {
         throw new Error(`Failed to get oracle price for asset: ${assetId}`);
       }
@@ -277,15 +278,12 @@ export async function calculateAuctionValue(
       if (auctionType !== AuctionType.Interest) {
         effectiveCollateral += reserve.toEffectiveAssetFromBTokenFloat(amount) * oraclePrice;
         // TODO: change this to use the price in the db
-        lotValue +=
-          reserve.toAssetFromBTokenFloat(amount) *
-          (db.getPriceEntry(assetId)?.price ?? oraclePrice);
+        lotValue += reserve.toAssetFromBTokenFloat(amount) * (dbPrice ?? oraclePrice);
       }
       // Interest auctions are in underlying assets
       else {
         lotValue +=
-          (Number(amount) / 10 ** reserve.tokenMetadata.decimals) *
-          (db.getPriceEntry(assetId)?.price ?? oraclePrice);
+          (Number(amount) / 10 ** reserve.tokenMetadata.decimals) * (dbPrice ?? oraclePrice);
       }
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
