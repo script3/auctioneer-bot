@@ -122,8 +122,7 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
             to: auctionBid.auctionEntry.filler,
             requests: requests,
           }),
-          auctionBid.filler.keypair,
-          PoolContract.parsers.submit
+          auctionBid.filler.keypair
         );
         const filledAuction = scaleAuction(auctionData, result.ledger, fillCalculation.fillPercent);
         const filledAuctionValue = await calculateAuctionValue(
