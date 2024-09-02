@@ -24,9 +24,16 @@ import {
 import { APP_CONFIG } from './config.js';
 import { logger } from './logger.js';
 
+export interface PoolUserEst {
+  estimate: PositionsEstimate;
+  user: PoolUser;
+}
+
 export class SorobanHelper {
   network: Network;
   private pool_cache: Pool | undefined;
+  private user_cache: Map<string, PoolUser> = new Map();
+  private oracle_cache: PoolOracle | undefined;
 
   constructor() {
     this.network = {
@@ -49,23 +56,32 @@ export class SorobanHelper {
   }
 
   async loadUser(address: string): Promise<PoolUser> {
-    const pool = await this.loadPool();
-    return await pool.loadUser(address);
+    if (this.user_cache.has(address)) {
+      return this.user_cache.get(address) as PoolUser;
+    } else {
+      const pool = await this.loadPool();
+      const user = await pool.loadUser(address);
+      this.user_cache.set(address, user);
+      return user;
+    }
   }
 
   async loadPoolOracle(): Promise<PoolOracle> {
     try {
+      if (this.oracle_cache) {
+        return this.oracle_cache;
+      }
       const pool = await this.loadPool();
-      return await pool.loadOracle();
+      const oracle = await pool.loadOracle();
+      this.oracle_cache = oracle;
+      return oracle;
     } catch (e) {
       logger.error(`Error loading pool oracle: ${e}`);
       throw e;
     }
   }
 
-  async loadUserPositionEstimate(
-    address: string
-  ): Promise<{ estimate: PositionsEstimate; user: PoolUser }> {
+  async loadUserPositionEstimate(address: string): Promise<PoolUserEst> {
     try {
       const pool = await this.loadPool();
       const user = await pool.loadUser(address);
