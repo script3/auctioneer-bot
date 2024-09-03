@@ -6,12 +6,13 @@ import {
   scaleAuction,
 } from './auction.js';
 import { APP_CONFIG, Filler } from './utils/config.js';
-import { AuctioneerDatabase, AuctionEntry } from './utils/db.js';
+import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
 import { SorobanRpc } from '@stellar/stellar-sdk';
+import { sendSlackNotification } from './utils/slack_notifier.js';
 
 export type BidderSubmission = AuctionBid | FillerUnwind;
 
@@ -132,7 +133,9 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           sorobanHelper,
           this.db
         );
-
+        let logMessage = `Successful bid on auction\nType: ${AuctionType[auctionBid.auctionEntry.auction_type]}\nUser: ${auctionBid.auctionEntry.user_id}\nFiller: ${auctionBid.filler.name}\nFill Percent ${fillCalculation.fillPercent}\nLedger Fill Delta ${result.ledger - auctionBid.auctionEntry.start_block}\nHash ${result.txHash}\n`;
+        await sendSlackNotification(logMessage);
+        logger.info(logMessage);
         this.db.setFilledAuctionEntry({
           tx_hash: result.txHash,
           filler: auctionBid.auctionEntry.filler,
@@ -150,7 +153,9 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       }
       return true;
     } catch (e: any) {
-      logger.error(`Error submitting fill for auction: ${stringify(auctionBid)}`, e);
+      const logMessage = `Error submitting fill for auction\nType: ${auctionBid.auctionEntry.auction_type}\nUser: ${auctionBid.auctionEntry.user_id}\nFiller: ${auctionBid.filler.name}\nError: ${e}\n`;
+      await sendSlackNotification(`<!channel>` + logMessage);
+      logger.error(logMessage);
       return false;
     }
   }
