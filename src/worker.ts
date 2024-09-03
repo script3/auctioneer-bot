@@ -1,7 +1,6 @@
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent, readEvent } from './utils/messages.js';
-import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkHandler } from './work_handler.js';
 import { WorkSubmitter } from './work_submitter.js';
 

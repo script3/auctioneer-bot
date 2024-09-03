@@ -1,36 +1,23 @@
-import { PoolContract, PoolUser } from '@blend-capital/blend-sdk';
+import { PositionsEstimate } from '@blend-capital/blend-sdk';
 import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
-import { APP_CONFIG } from './utils/config.js';
-import { logger } from './utils/logger.js';
 import { WorkSubmission, WorkSubmissionType } from './work_submitter.js';
 
-export async function isLiquidatable(user: PoolUser): Promise<boolean> {
-  if (
-    user.positionEstimates.totalEffectiveCollateral /
-      user.positionEstimates.totalEffectiveLiabilities <
-    0.99
-  ) {
+export async function isLiquidatable(user: PositionsEstimate): Promise<boolean> {
+  if (user.totalEffectiveCollateral / user.totalEffectiveLiabilities < 0.99) {
     return true;
   }
   return false;
 }
 
-export function calculateLiquidationPercent(user: PoolUser): bigint {
-  const avgInverseLF =
-    user.positionEstimates.totalEffectiveLiabilities / user.positionEstimates.totalBorrowed;
-  const avgCF =
-    user.positionEstimates.totalEffectiveCollateral / user.positionEstimates.totalSupplied;
+export function calculateLiquidationPercent(user: PositionsEstimate): bigint {
+  const avgInverseLF = user.totalEffectiveLiabilities / user.totalBorrowed;
+  const avgCF = user.totalEffectiveCollateral / user.totalSupplied;
   const estIncentive = 1 + (1 - avgCF / avgInverseLF) / 2;
-  const numerator =
-    user.positionEstimates.totalEffectiveLiabilities * 1.1 -
-    user.positionEstimates.totalEffectiveCollateral;
+  const numerator = user.totalEffectiveLiabilities * 1.1 - user.totalEffectiveCollateral;
   const denominator = avgInverseLF * 1.1 - avgCF * estIncentive;
   const liqPercent = BigInt(
-    Math.min(
-      Math.round((numerator / denominator / user.positionEstimates.totalBorrowed) * 100),
-      100
-    )
+    Math.min(Math.round((numerator / denominator / user.totalBorrowed) * 100), 100)
   );
   return liqPercent;
 }
@@ -45,9 +32,11 @@ export async function scanUsers(
   for (let user of users) {
     // Check if the user already has a liquidation auction
     if ((await sorobanHelper.loadAuction(user.user_id, AuctionType.Liquidation)) === undefined) {
-      const poolUser = await sorobanHelper.loadUser(user.user_id);
-      if (await isLiquidatable(poolUser)) {
-        const liquidationPercent = calculateLiquidationPercent(poolUser);
+      const { estimate: poolUserEstimate } = await sorobanHelper.loadUserPositionEstimate(
+        user.user_id
+      );
+      if (await isLiquidatable(poolUserEstimate)) {
+        const liquidationPercent = calculateLiquidationPercent(poolUserEstimate);
         submissions.push({
           type: WorkSubmissionType.LiquidateUser,
           user: user.user_id,

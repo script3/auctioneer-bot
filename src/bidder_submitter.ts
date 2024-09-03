@@ -98,7 +98,8 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         auctionBid.filler,
         auctionBid.auctionEntry.auction_type,
         auctionData,
-        sorobanHelper
+        sorobanHelper,
+        this.db
       );
 
       if (currLedger >= fillCalculation.fillBlock) {
@@ -128,7 +129,8 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         const filledAuctionValue = await calculateAuctionValue(
           auctionBid.auctionEntry.auction_type,
           filledAuction,
-          sorobanHelper
+          sorobanHelper,
+          this.db
         );
 
         this.db.setFilledAuctionEntry({

@@ -52,6 +52,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         percent_liquidated: userLiquidation.liquidationPercent,
       });
       await sorobanHelper.submitTransaction(op, APP_CONFIG.fillers[0].keypair);
+      logger.info(`Submitted liquidation for user: ${userLiquidation.user}`);
       return true;
     } catch (e: any) {
       logger.error(`Error submitting user liquidation: ${stringify(userLiquidation)}`, e);

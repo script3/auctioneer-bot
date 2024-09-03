@@ -1,4 +1,11 @@
 {
+  "network": {
+    "rpc": "",
+    "passphrase": "Public Global Stellar Network ; September 2015",
+    "opts": {
+      "allowHttp": true
+    }
+  },
   "id": "CBP7NO6F7FRDHSOFQBT2L2UWYIZ2PU76JKVRYAQTG3KZSQLYAOKIF2WB",
   "config": {
     "admin": "CANSYFVMIP7JVYEZQ463Y2I2VLEVNLDJJ4QNZTDBGLOOGKURPTW4A6FQ",
@@ -21,6 +28,7 @@
     "type": "map",
     "value": {
       "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA": {
+        "poolId": "CBP7NO6F7FRDHSOFQBT2L2UWYIZ2PU76JKVRYAQTG3KZSQLYAOKIF2WB",
         "assetId": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
         "tokenMetadata": {
           "name": "native",
@@ -29,10 +37,6 @@
           "asset": {
             "code": "XLM"
           }
-        },
-        "poolBalance": {
-          "type": "bigint",
-          "value": "16121441919817"
         },
         "config": {
           "index": 0,
@@ -72,10 +76,7 @@
             "type": "bigint",
             "value": "996186"
           },
-          "lastTime": {
-            "type": "bigint",
-            "value": "1723574859"
-          }
+          "lastTime": 1723574859
         },
         "borrowEmissions": {
           "config": {
@@ -83,21 +84,16 @@
               "type": "bigint",
               "value": "93079"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "5978351"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723565204"
-            }
-          }
+            "lastTime": 1723565204
+          },
+          "latestLedger": 53017264
         },
         "supplyEmissions": {
           "config": {
@@ -105,37 +101,23 @@
               "type": "bigint",
               "value": "93079"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "79988"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723574939"
-            }
-          }
+            "lastTime": 1723574939
+          },
+          "latestLedger": 53017264
         },
-        "oraclePrice": 0.09899585234193,
-        "estimates": {
-          "dRate": 1.0005693319382896,
-          "bRate": 1.000087741808485,
-          "supplied": 2123824.333184506,
-          "borrowed": 511680.41117514914,
-          "available": 1612144.1919817,
-          "apy": 0.0034092400070854186,
-          "supplyApy": 0.0006570941935061094,
-          "util": 0.24092400070854186,
-          "timestamp": "1723578353"
-        },
+        "borrowApr": 0.0034092,
+        "supplyApr": 0.000657,
         "latestLedger": 53017264
       },
       "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75": {
+        "poolId": "CBP7NO6F7FRDHSOFQBT2L2UWYIZ2PU76JKVRYAQTG3KZSQLYAOKIF2WB",
         "assetId": "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
         "tokenMetadata": {
           "name": "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
@@ -145,10 +127,6 @@
             "code": "USDC",
             "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
           }
-        },
-        "poolBalance": {
-          "type": "bigint",
-          "value": "887453563938"
         },
         "config": {
           "index": 1,
@@ -188,10 +166,7 @@
             "type": "bigint",
             "value": "9045868"
           },
-          "lastTime": {
-            "type": "bigint",
-            "value": "1723567543"
-          }
+          "lastTime": 1723567543
         },
         "borrowEmissions": {
           "config": {
@@ -199,21 +174,16 @@
               "type": "bigint",
               "value": "232700"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "1668489"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723574728"
-            }
-          }
+            "lastTime": 1723574728
+          },
+          "latestLedger": 53017264
         },
         "supplyEmissions": {
           "config": {
@@ -221,37 +191,23 @@
               "type": "bigint",
               "value": "232700"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "1336228"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723574728"
-            }
-          }
+            "lastTime": 1723574728
+          },
+          "latestLedger": 53017264
         },
-        "oraclePrice": 0.99969142646062,
-        "estimates": {
-          "dRate": 1.0102345046078385,
-          "bRate": 1.0070254222505144,
-          "supplied": 570161.5080254594,
-          "borrowed": 481422.0839465812,
-          "available": 88745.3563938,
-          "apy": 0.15003066784427496,
-          "supplyApy": 0.10134233246185058,
-          "util": 0.8443468085391658,
-          "timestamp": "1723578353"
-        },
+        "borrowApr": 0.1500306,
+        "supplyApr": 0.1013423,
         "latestLedger": 53017264
       },
       "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV": {
+        "poolId": "CBP7NO6F7FRDHSOFQBT2L2UWYIZ2PU76JKVRYAQTG3KZSQLYAOKIF2WB",
         "assetId": "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV",
         "tokenMetadata": {
           "name": "EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
@@ -261,10 +217,6 @@
             "code": "EURC",
             "issuer": "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2"
           }
-        },
-        "poolBalance": {
-          "type": "bigint",
-          "value": "645388828482"
         },
         "config": {
           "index": 2,
@@ -304,10 +256,7 @@
             "type": "bigint",
             "value": "1019081"
           },
-          "lastTime": {
-            "type": "bigint",
-            "value": "1723567988"
-          }
+          "lastTime": 1723567988
         },
         "borrowEmissions": {
           "config": {
@@ -315,21 +264,16 @@
               "type": "bigint",
               "value": "93079"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "3843472"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723573325"
-            }
-          }
+            "lastTime": 1723573325
+          },
+          "latestLedger": 53017264
         },
         "supplyEmissions": {
           "config": {
@@ -337,37 +281,23 @@
               "type": "bigint",
               "value": "93079"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "2190400"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723573325"
-            }
-          }
+            "lastTime": 1723573325
+          },
+          "latestLedger": 53017264
         },
-        "oraclePrice": 1.09278286319197,
-        "estimates": {
-          "dRate": 1.009925046625657,
-          "bRate": 1.00478432490794,
-          "supplied": 124676.88463816191,
-          "borrowed": 60138.55315985133,
-          "available": 64538.8828482,
-          "apy": 0.11041938178802405,
-          "supplyApy": 0.04260814752223565,
-          "util": 0.48234452629919633,
-          "timestamp": "1723578353"
-        },
+        "borrowApr": 0.1104193,
+        "supplyApr": 0.0426081,
         "latestLedger": 53017264
       },
       "CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK": {
+        "poolId": "CBP7NO6F7FRDHSOFQBT2L2UWYIZ2PU76JKVRYAQTG3KZSQLYAOKIF2WB",
         "assetId": "CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK",
         "tokenMetadata": {
           "name": "AQUA:GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
@@ -377,10 +307,6 @@
             "code": "AQUA",
             "issuer": "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA"
           }
-        },
-        "poolBalance": {
-          "type": "bigint",
-          "value": "489805218724931"
         },
         "config": {
           "index": 3,
@@ -420,10 +346,7 @@
             "type": "bigint",
             "value": "59875528"
           },
-          "lastTime": {
-            "type": "bigint",
-            "value": "1723571395"
-          }
+          "lastTime": 1723571395
         },
         "supplyEmissions": {
           "config": {
@@ -431,43 +354,22 @@
               "type": "bigint",
               "value": "93079"
             },
-            "expiration": {
-              "type": "bigint",
-              "value": "1724136187"
-            }
+            "expiration": 1724136187
           },
           "data": {
             "index": {
               "type": "bigint",
               "value": "1716"
             },
-            "lastTime": {
-              "type": "bigint",
-              "value": "1723571395"
-            }
-          }
+            "lastTime": 1723571395
+          },
+          "latestLedger": 53017265
         },
-        "oraclePrice": 0.00064116899991,
-        "estimates": {
-          "dRate": 1.0003620576711663,
-          "bRate": 1.0000253792677727,
-          "supplied": 73230385.03018695,
-          "borrowed": 24249881.646847814,
-          "available": 48980521.8724931,
-          "apy": 0.006676766638125731,
-          "supplyApy": 0.001768780818086942,
-          "util": 0.33114472055733424,
-          "timestamp": "1723578353"
-        },
+        "borrowApr": 0.0066767,
+        "supplyApr": 0.0017687,
         "latestLedger": 53017265
       }
     }
   },
-  "estimates": {
-    "totalSupply": 963433.1870606157,
-    "totalBorrow": 613194.4209348453,
-    "totalBorrowApy": 0.13003849014637545
-  },
-  "latestLedger": 53017264,
-  "timestamp": "1723578353"
+  "timestamp": 1723578353
 }

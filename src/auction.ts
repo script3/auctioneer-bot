@@ -1,7 +1,7 @@
-import { AuctionData, Request, RequestType, Reserve } from '@blend-capital/blend-sdk';
+import { AuctionData, Request, RequestType } from '@blend-capital/blend-sdk';
 import { Filler } from './utils/config.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
-import { AuctionType } from './utils/db.js';
+import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctionBid } from './bidder_submitter.js';
 import { Asset } from '@stellar/stellar-sdk';
@@ -29,11 +29,12 @@ export async function calculateBlockFillAndPercent(
   filler: Filler,
   auctionType: AuctionType,
   auctionData: AuctionData,
-  sorobanHelper: SorobanHelper
+  sorobanHelper: SorobanHelper,
+  db: AuctioneerDatabase
 ): Promise<FillCalculation> {
   // Sum the effective collateral and lot value
   let { effectiveCollateral, effectiveLiabilities, lotValue, bidValue } =
-    await calculateAuctionValue(auctionType, auctionData, sorobanHelper);
+    await calculateAuctionValue(auctionType, auctionData, sorobanHelper, db);
 
   let fillBlockDelay = 0;
   let fillPercent = 100;
@@ -72,7 +73,9 @@ export async function calculateBlockFillAndPercent(
   }
   // Ensure the filler can maintain their minimum health factor
   else {
-    const fillerState = await sorobanHelper.loadUser(filler.keypair.publicKey());
+    const { estimate: fillerPositionEstimates } = await sorobanHelper.loadUserPositionEstimate(
+      filler.keypair.publicKey()
+    );
     if (fillBlockDelay <= 200) {
       effectiveCollateral = effectiveCollateral * (fillBlockDelay / 200);
     } else {
@@ -81,8 +84,8 @@ export async function calculateBlockFillAndPercent(
     if (effectiveCollateral < effectiveLiabilities) {
       const excessLiabilities = effectiveLiabilities - effectiveCollateral;
       const liabilityLimitToHF =
-        fillerState.positionEstimates.totalEffectiveCollateral / filler.minHealthFactor -
-        fillerState.positionEstimates.totalEffectiveLiabilities;
+        fillerPositionEstimates.totalEffectiveCollateral / filler.minHealthFactor -
+        fillerPositionEstimates.totalEffectiveLiabilities;
 
       if (excessLiabilities > liabilityLimitToHF) {
         fillPercent = Math.min(
@@ -190,12 +193,19 @@ export async function buildFillRequests(
     amount: BigInt(fillPercent),
   });
 
+  const poolOracle = await sorobanHelper.loadPoolOracle();
   // Interest auctions transfer underlying assets
   if (auctionBid.auctionEntry.auction_type !== AuctionType.Interest) {
-    let fillerState = await sorobanHelper.loadUser(auctionBid.auctionEntry.filler);
+    let { estimate: fillerPositionEstimates, user: fillerPositions } =
+      await sorobanHelper.loadUserPositionEstimate(auctionBid.auctionEntry.filler);
     const reserves = (await sorobanHelper.loadPool()).reserves;
 
     for (const [assetId, amount] of auctionData.bid) {
+      const oraclePrice = poolOracle.getPriceFloat(assetId);
+      // Skip assets without an oracle price
+      if (oraclePrice === undefined) {
+        continue;
+      }
       const reserve = reserves.get(assetId);
       let fillerBalance = await sorobanHelper.simBalance(assetId, auctionBid.auctionEntry.filler);
 
@@ -206,8 +216,8 @@ export async function buildFillRequests(
       if (reserve !== undefined && fillerBalance > 0) {
         const liabilityLeft = Math.max(0, Number(amount) - fillerBalance);
         const effectiveLiabilityIncrease =
-          reserve.toEffectiveAssetFromDToken(BigInt(liabilityLeft)) * reserve.oraclePrice;
-        fillerState.positionEstimates.totalEffectiveLiabilities += effectiveLiabilityIncrease;
+          reserve.toEffectiveAssetFromDTokenFloat(BigInt(liabilityLeft)) * oraclePrice;
+        fillerPositionEstimates.totalEffectiveLiabilities += effectiveLiabilityIncrease;
         fillRequests.push({
           request_type: RequestType.Repay,
           address: assetId,
@@ -218,13 +228,17 @@ export async function buildFillRequests(
 
     for (const [assetId, amount] of auctionData.lot) {
       const reserve = reserves.get(assetId);
-
-      if (reserve !== undefined && !fillerState.positions.collateral.has(reserve.config.index)) {
+      const oraclePrice = poolOracle.getPriceFloat(assetId);
+      if (
+        reserve !== undefined &&
+        !fillerPositions.positions.collateral.has(reserve.config.index) &&
+        oraclePrice !== undefined
+      ) {
         const effectiveCollateralIncrease =
-          reserve.toEffectiveAssetFromBToken(amount) * reserve.oraclePrice;
+          reserve.toEffectiveAssetFromBTokenFloat(amount) * oraclePrice;
         const newHF =
-          fillerState.positionEstimates.totalEffectiveCollateral /
-          fillerState.positionEstimates.totalEffectiveLiabilities;
+          fillerPositionEstimates.totalEffectiveCollateral /
+          fillerPositionEstimates.totalEffectiveLiabilities;
         if (newHF > auctionBid.filler.minHealthFactor) {
           fillRequests.push({
             request_type: RequestType.WithdrawCollateral,
@@ -232,7 +246,7 @@ export async function buildFillRequests(
             amount: BigInt(amount),
           });
         } else {
-          fillerState.positionEstimates.totalEffectiveCollateral += effectiveCollateralIncrease;
+          fillerPositionEstimates.totalEffectiveCollateral += effectiveCollateralIncrease;
         }
       }
     }
@@ -243,24 +257,33 @@ export async function buildFillRequests(
 export async function calculateAuctionValue(
   auctionType: AuctionType,
   auctionData: AuctionData,
-  sorobanHelper: SorobanHelper
+  sorobanHelper: SorobanHelper,
+  db: AuctioneerDatabase
 ): Promise<AuctionValue> {
   let effectiveCollateral = 0;
   let lotValue = 0;
   let effectiveLiabilities = 0;
   let bidValue = 0;
   const reserves = (await sorobanHelper.loadPool()).reserves;
+  const poolOracle = await sorobanHelper.loadPoolOracle();
   for (const [assetId, amount] of auctionData.lot) {
     const reserve = reserves.get(assetId);
     if (reserve !== undefined) {
+      const oraclePrice = poolOracle.getPriceFloat(assetId);
+      const dbPrice = db.getPriceEntry(assetId)?.price;
+      if (oraclePrice === undefined) {
+        throw new Error(`Failed to get oracle price for asset: ${assetId}`);
+      }
+
       if (auctionType !== AuctionType.Interest) {
-        effectiveCollateral += reserve.toEffectiveAssetFromBToken(amount) * reserve.oraclePrice;
+        effectiveCollateral += reserve.toEffectiveAssetFromBTokenFloat(amount) * oraclePrice;
         // TODO: change this to use the price in the db
-        lotValue += reserve.toAssetFromBToken(amount) * reserve.oraclePrice;
+        lotValue += reserve.toAssetFromBTokenFloat(amount) * (dbPrice ?? oraclePrice);
       }
       // Interest auctions are in underlying assets
       else {
-        lotValue += (Number(amount) / 10 ** reserve.config.decimals) * reserve.oraclePrice;
+        lotValue +=
+          (Number(amount) / 10 ** reserve.tokenMetadata.decimals) * (dbPrice ?? oraclePrice);
       }
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
@@ -280,10 +303,17 @@ export async function calculateAuctionValue(
 
   for (const [assetId, amount] of auctionData.bid) {
     const reserve = reserves.get(assetId);
+    const dbPrice = db.getPriceEntry(assetId)?.price;
+
     if (reserve !== undefined) {
-      effectiveLiabilities += reserve.toEffectiveAssetFromDToken(amount) * reserve.oraclePrice;
+      const oraclePrice = poolOracle.getPriceFloat(assetId);
+      if (oraclePrice === undefined) {
+        throw new Error(`Failed to get oracle price for asset: ${assetId}`);
+      }
+
+      effectiveLiabilities += reserve.toEffectiveAssetFromDTokenFloat(amount) * oraclePrice;
       // TODO: change this to use the price in the db
-      bidValue += reserve.toAssetFromDToken(amount) * reserve.oraclePrice;
+      bidValue += reserve.toAssetFromDTokenFloat(amount) * (dbPrice ?? oraclePrice);
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
       const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));

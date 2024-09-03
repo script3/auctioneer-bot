@@ -55,7 +55,8 @@ async function main() {
               filler,
               auction.auction_type,
               auctionData,
-              sorobanHelper
+              sorobanHelper,
+              db
             );
             auction.fill_block = fillCalculation.fillBlock;
             db.setAuctionEntry(auction);
