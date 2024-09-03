@@ -7,6 +7,7 @@ import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
+import { sendSlackNotification } from './utils/slack_notifier.js';
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 200;
@@ -115,16 +116,17 @@ export class PoolEventHandler {
             updated: poolEvent.event.ledger,
           };
           this.db.setAuctionEntry(auctionEntry);
-          logger.info(
-            `Added auction of type ${poolEvent.event.auctionType} to ongoing for filler: ${filler.name}`
-          );
+
+          const logMessage = `New auction\nType: ${AuctionType[poolEvent.event.auctionType]}\nFiller: ${filler.name}\nAuction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
+          await sendSlackNotification(logMessage);
+          logger.info(logMessage);
           fillerFound = true;
           break;
         }
         if (!fillerFound) {
-          logger.info(
-            `No filler found for auction with type ${poolEvent.event.auctionType}. Ignoring.`
-          );
+          const logMessage = `Auction Ignore\n Type: ${AuctionType[poolEvent.event.auctionType]}\nAuction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
+          await sendSlackNotification(logMessage);
+          logger.info(logMessage);
         }
         break;
       }
@@ -146,14 +148,17 @@ export class PoolEventHandler {
             updated: poolEvent.event.ledger,
           };
           this.db.setAuctionEntry(auctionEntry);
-          logger.info(
-            `Added liquidation auction for user ${poolEvent.event.user} to ongoing for filler: ${filler.name}`
-          );
+
+          const logMessage = `New auction\nType: User Liquidation\nUser: ${poolEvent.event.user}\nFiller: ${filler.name}\nAuction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
+          logger.info(logMessage);
+          await sendSlackNotification(logMessage);
           fillerFound = true;
           break;
         }
         if (!fillerFound) {
-          logger.info(`No filler found for liquidation auction. Ignoring auction.`);
+          const logMessage = `Auction Ignored\nType: User Liquidation\nUser: ${poolEvent.event.user}\nAuction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
+          logger.info(logMessage);
+          await sendSlackNotification(logMessage);
         }
         break;
       }
@@ -161,13 +166,15 @@ export class PoolEventHandler {
         // user position is now healthy and user deleted their liquidation auction
         let runResult = this.db.deleteAuctionEntry(poolEvent.event.user, AuctionType.Liquidation);
         if (runResult.changes !== 0) {
-          logger.info(
-            `Auction deleted. Removed liquidation auction for user ${poolEvent.event.user}`
-          );
+          const logMessage = `Liquidation Auction Deleted\nUser: ${poolEvent.event.user}\n`;
+          await sendSlackNotification(logMessage);
+          logger.info(logMessage);
         }
         break;
       }
       case PoolEventType.FillAuction: {
+        const logMessage = `Auction Fill Event\nType ${AuctionType[poolEvent.event.auctionType]}\nFiller: ${poolEvent.event.from}\nUser: ${poolEvent.event.user}\nFill Percent: ${poolEvent.event.fillAmount}\nTx Hash: ${poolEvent.event.txHash}\n`;
+        await sendSlackNotification(logMessage);
         if (poolEvent.event.fillAmount === BigInt(100)) {
           // auction was fully filled, remove from ongoing auctions
           let runResult = this.db.deleteAuctionEntry(
@@ -175,9 +182,7 @@ export class PoolEventHandler {
             poolEvent.event.auctionType
           );
           if (runResult.changes !== 0) {
-            logger.info(
-              `Auction filled completely by ${poolEvent.event.from}. Removed auction type ${poolEvent.event.auctionType} for user ${poolEvent.event.user}`
-            );
+            logger.info(logMessage);
           }
           const { estimate: userPositionsEstimate, user } =
             await this.sorobanHelper.loadUserPositionEstimate(poolEvent.event.user);

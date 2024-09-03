@@ -6,6 +6,7 @@ import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { readEvent } from './utils/messages.js';
+import { sendSlackNotification } from './utils/slack_notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 
 export interface OngoingAuction {
@@ -58,6 +59,11 @@ async function main() {
               sorobanHelper,
               db
             );
+            const logMessage = `Auction Calculation\n Type: ${AuctionType[auction.auction_type]}\nUser: ${auction.user_id}\nCalculation: ${stringify(fillCalculation, 2)}\n Ledgers To Fill In: ${fillCalculation.fillBlock - nextLedger}\n`;
+            if (auction.fill_block === 0) {
+              await sendSlackNotification(logMessage);
+            }
+            logger.info(logMessage);
             auction.fill_block = fillCalculation.fillBlock;
             db.setAuctionEntry(auction);
           }

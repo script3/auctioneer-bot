@@ -5,6 +5,7 @@ import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
+import { sendSlackNotification } from './utils/slack_notifier.js';
 
 export type WorkSubmission = UserLiquidation;
 
@@ -55,7 +56,9 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
       logger.info(`Submitted liquidation for user: ${userLiquidation.user}`);
       return true;
     } catch (e: any) {
-      logger.error(`Error submitting user liquidation: ${stringify(userLiquidation)}`, e);
+      const logMessage = `Error creating user liquidaiton\nUser: ${userLiquidation.user}\nLiquidation Percent: ${userLiquidation.liquidationPercent}\nError: ${e}\n`;
+      logger.error(logMessage);
+      await sendSlackNotification(`<!channel>` + logMessage);
       return false;
     }
   }
