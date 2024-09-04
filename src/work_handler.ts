@@ -1,6 +1,7 @@
 import { AppEvent, EventType } from './events.js';
 import { checkUsersForLiquidations, scanUsers } from './liquidations.js';
 import { OracleHistory } from './oracle_history.js';
+import { updateUser } from './user.js';
 import { AuctioneerDatabase, UserEntry } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
@@ -91,6 +92,7 @@ export class WorkHandler {
           }
         }
         const liquidations = await checkUsersForLiquidations(
+          this.db,
           soroban_helper,
           Array.from(usersToCheck)
         );
@@ -106,6 +108,19 @@ export class WorkHandler {
           this.submissionQueue.addSubmission(liquidation, 2);
         }
         break;
+      }
+      case EventType.USER_REFRESH: {
+        const sorobanHelper = new SorobanHelper();
+        const oldUsers = this.db.getUserEntriesUpdatedBefore(appEvent.cutoff);
+        if (oldUsers.length === 0) {
+          return;
+        }
+        const pool = await sorobanHelper.loadPool();
+        for (const user of oldUsers) {
+          const { estimate: poolUserEstimate, user: poolUser } =
+            await sorobanHelper.loadUserPositionEstimate(user.user_id);
+          updateUser(this.db, pool, poolUser, poolUserEstimate);
+        }
       }
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);

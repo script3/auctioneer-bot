@@ -3,16 +3,16 @@ import {
   PoolOracle,
   PoolUser,
   PoolUserEmissionData,
+  PositionsEstimate,
   PriceData,
   Reserve,
-  PositionsEstimate,
 } from '@blend-capital/blend-sdk';
+import { Keypair } from '@stellar/stellar-sdk';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuctioneerDatabase } from '../../src/utils/db';
-import { parse } from '../../src/utils/json';
-import { Keypair } from '@stellar/stellar-sdk';
+import { AuctioneerDatabase } from '../../src/utils/db.js';
+import { parse } from '../../src/utils/json.js';
 
 const mockPoolPath = path.resolve(__dirname, 'mock-pool.json');
 let pool = parse<Pool>(fs.readFileSync(mockPoolPath, 'utf8'));
@@ -34,6 +34,8 @@ pool.reserves.forEach((reserve, assetId, map) => {
   );
 });
 export let mockedPool = pool;
+
+export let mockedReserves = pool.config.reserveList;
 
 export let mockPoolUser = new PoolUser(
   Keypair.random().publicKey(),

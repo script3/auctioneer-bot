@@ -2,13 +2,19 @@ import { PositionsEstimate } from '@blend-capital/blend-sdk';
 import { calculateLiquidationPercent, isLiquidatable, scanUsers } from '../src/liquidations.js';
 import { AuctioneerDatabase } from '../src/utils/db.js';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
-import { inMemoryAuctioneerDb, mockPoolUser, mockPoolUserEstimate } from './helpers/mocks.js';
+import {
+  inMemoryAuctioneerDb,
+  mockedPool,
+  mockPoolUser,
+  mockPoolUserEstimate,
+} from './helpers/mocks.js';
+
+jest.mock('../src/utils/soroban_helper.js');
 
 describe('isLiquidatable', () => {
-  let sorobanHelper: SorobanHelper;
   let userEstimate: PositionsEstimate;
+
   beforeEach(() => {
-    sorobanHelper = new SorobanHelper();
     userEstimate = mockPoolUserEstimate;
     userEstimate.totalEffectiveCollateral = 25000;
     userEstimate.totalEffectiveLiabilities = 1000;
@@ -17,14 +23,14 @@ describe('isLiquidatable', () => {
   it('returns true if the userEstimate health factor is below .99', async () => {
     userEstimate.totalEffectiveCollateral = 1000;
     userEstimate.totalEffectiveLiabilities = 1011;
-    const result = await isLiquidatable(userEstimate);
+    const result = isLiquidatable(userEstimate);
     expect(result).toBe(true);
   });
 
   it('returns false if the userEstimate health facotr is above .99', async () => {
     userEstimate.totalEffectiveCollateral = 1000;
     userEstimate.totalEffectiveLiabilities = 1010;
-    const result = await isLiquidatable(userEstimate);
+    const result = isLiquidatable(userEstimate);
     expect(result).toBe(false);
   });
 });
@@ -71,11 +77,12 @@ describe('calculateLiquidationPercent', () => {
 
 describe('scanUsers', () => {
   let db: AuctioneerDatabase;
-  let sorobanHelper: SorobanHelper;
+  let mockedSorobanHelper: jest.Mocked<SorobanHelper>;
 
   beforeEach(() => {
     db = inMemoryAuctioneerDb();
-    sorobanHelper = new SorobanHelper();
+    mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
+    mockedSorobanHelper.loadPool.mockResolvedValue(mockedPool);
   });
 
   it('should create a work submission for liquidatable users', async () => {
@@ -92,12 +99,13 @@ describe('scanUsers', () => {
       liabilities: new Map(),
       updated: 123,
     });
-    jest
-      .spyOn(sorobanHelper, 'loadUserPositionEstimate')
-      .mockResolvedValue({ estimate: mockPoolUserEstimate, user: mockPoolUser });
-    jest.spyOn(sorobanHelper, 'loadAuction').mockResolvedValue(undefined);
+    mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+      estimate: mockPoolUserEstimate,
+      user: mockPoolUser,
+    });
+    mockedSorobanHelper.loadAuction.mockResolvedValue(undefined);
 
-    let liquidations = await scanUsers(db, sorobanHelper);
+    let liquidations = await scanUsers(db, mockedSorobanHelper);
     expect(liquidations.length).toBe(1);
   });
 
@@ -115,14 +123,17 @@ describe('scanUsers', () => {
       liabilities: new Map(),
       updated: 123,
     });
-    jest
-      .spyOn(sorobanHelper, 'loadUserPositionEstimate')
-      .mockResolvedValue({ estimate: mockPoolUserEstimate, user: mockPoolUser });
-    jest
-      .spyOn(sorobanHelper, 'loadAuction')
-      .mockResolvedValue({ bid: new Map(), lot: new Map(), block: 123 });
+    mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+      estimate: mockPoolUserEstimate,
+      user: mockPoolUser,
+    });
+    mockedSorobanHelper.loadAuction.mockResolvedValue({
+      bid: new Map(),
+      lot: new Map(),
+      block: 123,
+    });
 
-    let liquidations = await scanUsers(db, sorobanHelper);
+    let liquidations = await scanUsers(db, mockedSorobanHelper);
     expect(liquidations.length).toBe(0);
   });
 });

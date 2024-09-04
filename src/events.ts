@@ -6,6 +6,7 @@ export enum EventType {
   ORACLE_SCAN = 'oracle_scan',
   LIQ_SCAN = 'liq_scan',
   POOL_EVENT = 'pool_event',
+  USER_REFRESH = 'user_refresh',
 }
 
 // ********* Shared **********
@@ -15,7 +16,8 @@ export type AppEvent =
   | PriceUpdateEvent
   | OracleScanEvent
   | LiqScanEvent
-  | PoolEventEvent;
+  | PoolEventEvent
+  | UserRefreshEvent;
 
 /**
  * Base interface for all events.
@@ -33,6 +35,14 @@ export interface LedgerEvent extends BaseEvent {
   ledger: number;
 }
 
+/**
+ * Event to react to a pool event.
+ */
+export interface PoolEventEvent extends BaseEvent {
+  type: EventType.POOL_EVENT;
+  event: PoolEvent;
+}
+
 // ********** Work Queue Only **********
 
 /**
@@ -47,7 +57,6 @@ export interface PriceUpdateEvent extends BaseEvent {
  */
 export interface OracleScanEvent extends BaseEvent {
   type: EventType.ORACLE_SCAN;
-  asset: string;
 }
 
 /**
@@ -58,9 +67,12 @@ export interface LiqScanEvent extends BaseEvent {
 }
 
 /**
- * Event to react to a pool event.
+ * Event to refresh user old user data.
  */
-export interface PoolEventEvent extends BaseEvent {
-  type: EventType.POOL_EVENT;
-  event: PoolEvent;
+export interface UserRefreshEvent extends BaseEvent {
+  type: EventType.USER_REFRESH;
+  /**
+   * The cutoff ledger such that any user data older than this will be refreshed.
+   */
+  cutoff: number;
 }

@@ -231,7 +231,7 @@ export class AuctioneerDatabase {
       if (entry) {
         return {
           user_id: entry.user_id,
-          health_factor: entry.balance,
+          health_factor: entry.health_factor,
           collateral: parse<Map<string, bigint>>(entry.collateral),
           liabilities: parse<Map<string, bigint>>(entry.liabilities),
           updated: entry.updated,
@@ -289,7 +289,7 @@ export class AuctioneerDatabase {
         } as UserEntry;
       });
     } catch (error: any) {
-      logger.error(`Error getting user entries with liability: ${error}`);
+      logger.error(`Error getting user entries with liability ${assetId}: ${error}`);
       throw error;
     }
   }
@@ -314,7 +314,32 @@ export class AuctioneerDatabase {
         } as UserEntry;
       });
     } catch (error: any) {
-      logger.error(`Error getting user entries with collateral: ${error}`);
+      logger.error(`Error getting user entries with collateral ${assetId}: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all users in the database with an entry updated before the given ledger.
+   * @param ledger - The ledger to filter by
+   * @returns An array user entries, or an empty array if none are found
+   */
+  getUserEntriesUpdatedBefore(ledger: number, limit: number = 10): UserEntry[] {
+    try {
+      let entries: any[] = this.db
+        .prepare('SELECT * FROM users WHERE updated < ? LIMIT ?')
+        .all(ledger, limit);
+      return entries.map((entry) => {
+        return {
+          user_id: entry.user_id,
+          health_factor: entry.balance,
+          collateral: parse<Map<string, bigint>>(entry.collateral),
+          liabilities: parse<Map<string, bigint>>(entry.liabilities),
+          updated: entry.updated,
+        } as UserEntry;
+      });
+    } catch (error: any) {
+      logger.error(`Error getting user entries updated before ${ledger}: ${error}`);
       throw error;
     }
   }

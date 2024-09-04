@@ -1,4 +1,5 @@
 import { PositionsEstimate } from '@blend-capital/blend-sdk';
+import { updateUser } from './user.js';
 import { AuctioneerDatabase, AuctionType, UserEntry } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
@@ -44,24 +45,30 @@ export async function scanUsers(
   sorobanHelper: SorobanHelper
 ): Promise<WorkSubmission[]> {
   let users = db.getUserEntriesUnderHealthFactor(1.2);
-  return checkUsersForLiquidations(sorobanHelper, users);
+  return checkUsersForLiquidations(db, sorobanHelper, users);
 }
 
 /**
  * Check a provided list of users for liquidations
+ * @param db - The database
  * @param sorobanHelper - The soroban helper
  * @param users - The list of users to check
  * @returns A list of liquidations to be submitted
  */
-export async function checkUsersForLiquidations(sorobanHelper: SorobanHelper, users: UserEntry[]) {
+export async function checkUsersForLiquidations(
+  db: AuctioneerDatabase,
+  sorobanHelper: SorobanHelper,
+  users: UserEntry[]
+) {
+  const pool = await sorobanHelper.loadPool();
   logger.info(`Checking ${users.length} users for liquidations..`);
   let submissions: WorkSubmission[] = [];
   for (let user of users) {
     // Check if the user already has a liquidation auction
     if ((await sorobanHelper.loadAuction(user.user_id, AuctionType.Liquidation)) === undefined) {
-      const { estimate: poolUserEstimate } = await sorobanHelper.loadUserPositionEstimate(
-        user.user_id
-      );
+      const { estimate: poolUserEstimate, user: poolUser } =
+        await sorobanHelper.loadUserPositionEstimate(user.user_id);
+      updateUser(db, pool, poolUser, poolUserEstimate);
       if (isLiquidatable(poolUserEstimate)) {
         const liquidationPercent = calculateLiquidationPercent(poolUserEstimate);
         submissions.push({

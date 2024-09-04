@@ -1,5 +1,5 @@
 import { PoolOracle, PriceData } from '@blend-capital/blend-sdk';
-import { OracleHistory } from '../src/oracle_history';
+import { OracleHistory } from '../src/oracle_history.js';
 
 describe('oracleHistory', () => {
   it('finds significant price changes', async () => {
