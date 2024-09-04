@@ -1,12 +1,15 @@
-import { AuctionType } from '../src/utils/db.js';
+import { Request, RequestType } from '@blend-capital/blend-sdk';
 import { Keypair } from '@stellar/stellar-sdk';
-import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
   buildFillRequests,
   calculateAuctionValue,
   calculateBlockFillAndPercent,
   scaleAuction,
 } from '../src/auction.js';
+import { AuctionBid, BidderSubmissionType } from '../src/bidder_submitter.js';
+import { Filler } from '../src/utils/config.js';
+import { AuctionType } from '../src/utils/db.js';
+import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
   inMemoryAuctioneerDb,
   mockPoolOracle,
@@ -14,9 +17,6 @@ import {
   mockPoolUserEstimate,
   mockedPool,
 } from './helpers/mocks.js';
-import { Filler } from '../src/utils/config.js';
-import { AuctionBid, BidderSubmissionType } from '../src/bidder_submitter.js';
-import { PoolOracle, Request, RequestType } from '@blend-capital/blend-sdk';
 
 jest.mock('../src/utils/soroban_helper.js', () => {
   return {

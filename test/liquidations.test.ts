@@ -10,6 +10,17 @@ import {
 } from './helpers/mocks.js';
 
 jest.mock('../src/utils/soroban_helper.js');
+jest.mock('../src/utils/logger.js', () => ({
+  logger: {
+    error: jest.fn(),
+    info: jest.fn(),
+  },
+}));
+jest.mock('../src/utils/config.js', () => {
+  return {
+    APP_CONFIG: {},
+  };
+});
 
 describe('isLiquidatable', () => {
   let userEstimate: PositionsEstimate;
