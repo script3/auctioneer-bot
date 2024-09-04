@@ -19,6 +19,7 @@ export interface PriceSource {
 }
 
 export interface AppConfig {
+  name: string;
   rpcURL: string;
   networkPassphrase: string;
   poolAddress: string;
@@ -45,6 +46,7 @@ function validateAppConfig(config: any): boolean {
   }
 
   if (
+    typeof config.name !== 'string' ||
     typeof config.rpcURL !== 'string' ||
     typeof config.networkPassphrase !== 'string' ||
     typeof config.poolAddress !== 'string' ||
