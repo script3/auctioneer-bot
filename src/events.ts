@@ -3,7 +3,7 @@ import { PoolEvent } from '@blend-capital/blend-sdk';
 export enum EventType {
   LEDGER = 'ledger',
   PRICE_UPDATE = 'price_update',
-  PRICE_SPIKE = 'price_spike',
+  ORACLE_SCAN = 'oracle_scan',
   LIQ_SCAN = 'liq_scan',
   POOL_EVENT = 'pool_event',
 }
@@ -13,7 +13,7 @@ export enum EventType {
 export type AppEvent =
   | LedgerEvent
   | PriceUpdateEvent
-  | PriceSpikeEvent
+  | OracleScanEvent
   | LiqScanEvent
   | PoolEventEvent;
 
@@ -43,10 +43,10 @@ export interface PriceUpdateEvent extends BaseEvent {
 }
 
 /**
- * Event to react to a price spike of a pool asset.
+ * Check for changes in oracle prices and any potential liquidations due to oracle fluctuations.
  */
-export interface PriceSpikeEvent extends BaseEvent {
-  type: EventType.PRICE_SPIKE;
+export interface OracleScanEvent extends BaseEvent {
+  type: EventType.ORACLE_SCAN;
   asset: string;
 }
 

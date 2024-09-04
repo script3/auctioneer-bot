@@ -1,12 +1,8 @@
 import { PositionsEstimate } from '@blend-capital/blend-sdk';
+import { calculateLiquidationPercent, isLiquidatable, scanUsers } from '../src/liquidations.js';
+import { AuctioneerDatabase } from '../src/utils/db.js';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
-import {
-  isLiquidatable,
-  calculateLiquidationPercent,
-  scanUsers,
-} from '../src/liquidation_creator.js';
-import { inMemoryAuctioneerDb, mockPoolUser, mockPoolUserEstimate } from './helpers/mocks';
-import { AuctioneerDatabase } from '../src/utils/db';
+import { inMemoryAuctioneerDb, mockPoolUser, mockPoolUserEstimate } from './helpers/mocks.js';
 
 describe('isLiquidatable', () => {
   let sorobanHelper: SorobanHelper;

@@ -1,3 +1,4 @@
+import { OracleHistory } from './oracle_history.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent, readEvent } from './utils/messages.js';
@@ -7,13 +8,15 @@ import { WorkSubmitter } from './work_submitter.js';
 async function main() {
   const db = AuctioneerDatabase.connect();
   const submissionQueue = new WorkSubmitter(db);
+  const oracleHistory = new OracleHistory(0.05);
+
   process.on('message', async (message: any) => {
     let appEvent = readEvent(message);
     if (appEvent) {
       try {
         const timer = Date.now();
         logger.info(`Processing: ${message?.data}`);
-        const eventHandler = new WorkHandler(db, submissionQueue);
+        const eventHandler = new WorkHandler(db, submissionQueue, oracleHistory);
         await eventHandler.processEventWithRetryAndDeadletter(appEvent);
         logger.info(
           `Finished: ${message?.data} in ${Date.now() - timer}ms with delay ${timer - appEvent.timestamp}ms`
