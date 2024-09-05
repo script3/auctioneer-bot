@@ -56,15 +56,9 @@ export async function scanUsers(
   db: AuctioneerDatabase,
   sorobanHelper: SorobanHelper
 ): Promise<WorkSubmission[]> {
-  let users = db.getUserEntriesUnderHealthFactor(1.2);
+  let users = db.getUserEntriesUnderHealthFactor(1.2).map((user) => user.user_id);
+  users.push(APP_CONFIG.backstopAddress);
 
-  users.push({
-    user_id: APP_CONFIG.backstopAddress,
-    health_factor: 0,
-    collateral: new Map(),
-    liabilities: new Map(),
-    updated: 0,
-  });
   return checkUsersForLiquidationsAndBadDebt(db, sorobanHelper, users);
 }
 
@@ -78,39 +72,37 @@ export async function scanUsers(
 export async function checkUsersForLiquidationsAndBadDebt(
   db: AuctioneerDatabase,
   sorobanHelper: SorobanHelper,
-  users: UserEntry[]
-) {
+  user_ids: string[]
+): Promise<WorkSubmission[]> {
   const pool = await sorobanHelper.loadPool();
-  logger.info(`Checking ${users.length} users for liquidations..`);
+  logger.info(`Checking ${user_ids.length} users for liquidations..`);
   let submissions: WorkSubmission[] = [];
-  for (let user of users) {
+  for (let user of user_ids) {
     // Check if the user already has a liquidation auction
-    if (user.user_id === APP_CONFIG.backstopAddress) {
+    if (user === APP_CONFIG.backstopAddress) {
       const { estimate: backstopPostionsEstimate, user: _ } =
-        await sorobanHelper.loadUserPositionEstimate(user.user_id);
+        await sorobanHelper.loadUserPositionEstimate(user);
       if (isLiquidatable(backstopPostionsEstimate)) {
         submissions.push({
           type: WorkSubmissionType.BadDebtAuction,
         });
       }
-    } else if (
-      (await sorobanHelper.loadAuction(user.user_id, AuctionType.Liquidation)) === undefined
-    ) {
+    } else if ((await sorobanHelper.loadAuction(user, AuctionType.Liquidation)) === undefined) {
       const { estimate: poolUserEstimate, user: poolUser } =
-        await sorobanHelper.loadUserPositionEstimate(user.user_id);
+        await sorobanHelper.loadUserPositionEstimate(user);
       updateUser(db, pool, poolUser, poolUserEstimate);
       if (isLiquidatable(poolUserEstimate)) {
         const liquidationPercent = calculateLiquidationPercent(poolUserEstimate);
         submissions.push({
           type: WorkSubmissionType.LiquidateUser,
-          user: user.user_id,
+          user: user,
           liquidationPercent: liquidationPercent,
         });
       }
       if (isBadDebt(poolUserEstimate)) {
         submissions.push({
           type: WorkSubmissionType.BadDebtTransfer,
-          user: user.user_id,
+          user: user,
         });
       }
     }
