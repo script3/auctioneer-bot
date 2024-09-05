@@ -19,14 +19,17 @@ export class WorkHandler {
   private db: AuctioneerDatabase;
   private submissionQueue: WorkSubmitter;
   private oracleHistory: OracleHistory;
+  private sorobanHelper: SorobanHelper;
   constructor(
     db: AuctioneerDatabase,
     submissionQueue: WorkSubmitter,
-    oracleHistory: OracleHistory
+    oracleHistory: OracleHistory,
+    sorobanHelper: SorobanHelper
   ) {
     this.db = db;
     this.submissionQueue = submissionQueue;
     this.oracleHistory = oracleHistory;
+    this.sorobanHelper = sorobanHelper;
   }
 
   /**
@@ -74,26 +77,25 @@ export class WorkHandler {
         break;
       }
       case EventType.ORACLE_SCAN: {
-        const soroban_helper = new SorobanHelper();
-        const poolOracle = await soroban_helper.loadPoolOracle();
+        const poolOracle = await this.sorobanHelper.loadPoolOracle();
         const priceChanges = this.oracleHistory.getSignificantPriceChanges(poolOracle);
         // @dev: Insert into a set to ensure uniqueness
-        let usersToCheck = new Set<UserEntry>();
+        let usersToCheck = new Set<string>();
         for (const assetId of priceChanges.up) {
           const usersWithLiability = this.db.getUserEntriesWithLiability(assetId);
           for (const user of usersWithLiability) {
-            usersToCheck.add(user);
+            usersToCheck.add(user.user_id);
           }
         }
         for (const assetId of priceChanges.down) {
           const usersWithCollateral = this.db.getUserEntriesWithCollateral(assetId);
           for (const user of usersWithCollateral) {
-            usersToCheck.add(user);
+            usersToCheck.add(user.user_id);
           }
         }
         const liquidations = await checkUsersForLiquidationsAndBadDebt(
           this.db,
-          soroban_helper,
+          this.sorobanHelper,
           Array.from(usersToCheck)
         );
         for (const liquidation of liquidations) {
@@ -102,23 +104,21 @@ export class WorkHandler {
         break;
       }
       case EventType.LIQ_SCAN: {
-        const sorobanHelper = new SorobanHelper();
-        const liquidations = await scanUsers(this.db, sorobanHelper);
+        const liquidations = await scanUsers(this.db, this.sorobanHelper);
         for (const liquidation of liquidations) {
           this.submissionQueue.addSubmission(liquidation, 2);
         }
         break;
       }
       case EventType.USER_REFRESH: {
-        const sorobanHelper = new SorobanHelper();
         const oldUsers = this.db.getUserEntriesUpdatedBefore(appEvent.cutoff);
         if (oldUsers.length === 0) {
           return;
         }
-        const pool = await sorobanHelper.loadPool();
+        const pool = await this.sorobanHelper.loadPool();
         for (const user of oldUsers) {
           const { estimate: poolUserEstimate, user: poolUser } =
-            await sorobanHelper.loadUserPositionEstimate(user.user_id);
+            await this.sorobanHelper.loadUserPositionEstimate(user.user_id);
           updateUser(this.db, pool, poolUser, poolUserEstimate);
         }
       }
