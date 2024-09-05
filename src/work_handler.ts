@@ -1,6 +1,8 @@
 import { AppEvent, EventType } from './events.js';
-import { scanUsers } from './liquidation_creator.js';
-import { AuctioneerDatabase } from './utils/db.js';
+import { checkUsersForLiquidations, scanUsers } from './liquidations.js';
+import { OracleHistory } from './oracle_history.js';
+import { updateUser } from './user.js';
+import { AuctioneerDatabase, UserEntry } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
@@ -16,9 +18,15 @@ const RETRY_DELAY = 1000;
 export class WorkHandler {
   private db: AuctioneerDatabase;
   private submissionQueue: WorkSubmitter;
-  constructor(db: AuctioneerDatabase, submissionQueue: WorkSubmitter) {
+  private oracleHistory: OracleHistory;
+  constructor(
+    db: AuctioneerDatabase,
+    submissionQueue: WorkSubmitter,
+    oracleHistory: OracleHistory
+  ) {
     this.db = db;
     this.submissionQueue = submissionQueue;
+    this.oracleHistory = oracleHistory;
   }
 
   /**
@@ -61,16 +69,59 @@ export class WorkHandler {
    */
   async processEvent(appEvent: AppEvent): Promise<void> {
     switch (appEvent.type) {
-      case EventType.PRICE_UPDATE:
+      case EventType.PRICE_UPDATE: {
         await setPrices(this.db);
         break;
-      case EventType.LIQ_SCAN:
+      }
+      case EventType.ORACLE_SCAN: {
+        const soroban_helper = new SorobanHelper();
+        const poolOracle = await soroban_helper.loadPoolOracle();
+        const priceChanges = this.oracleHistory.getSignificantPriceChanges(poolOracle);
+        // @dev: Insert into a set to ensure uniqueness
+        let usersToCheck = new Set<UserEntry>();
+        for (const assetId of priceChanges.up) {
+          const usersWithLiability = this.db.getUserEntriesWithLiability(assetId);
+          for (const user of usersWithLiability) {
+            usersToCheck.add(user);
+          }
+        }
+        for (const assetId of priceChanges.down) {
+          const usersWithCollateral = this.db.getUserEntriesWithCollateral(assetId);
+          for (const user of usersWithCollateral) {
+            usersToCheck.add(user);
+          }
+        }
+        const liquidations = await checkUsersForLiquidations(
+          this.db,
+          soroban_helper,
+          Array.from(usersToCheck)
+        );
+        for (const liquidation of liquidations) {
+          this.submissionQueue.addSubmission(liquidation, 2);
+        }
+        break;
+      }
+      case EventType.LIQ_SCAN: {
         const sorobanHelper = new SorobanHelper();
         const liquidations = await scanUsers(this.db, sorobanHelper);
-        liquidations.forEach((liquidation) => {
+        for (const liquidation of liquidations) {
           this.submissionQueue.addSubmission(liquidation, 2);
-        });
+        }
         break;
+      }
+      case EventType.USER_REFRESH: {
+        const sorobanHelper = new SorobanHelper();
+        const oldUsers = this.db.getUserEntriesUpdatedBefore(appEvent.cutoff);
+        if (oldUsers.length === 0) {
+          return;
+        }
+        const pool = await sorobanHelper.loadPool();
+        for (const user of oldUsers) {
+          const { estimate: poolUserEstimate, user: poolUser } =
+            await sorobanHelper.loadUserPositionEstimate(user.user_id);
+          updateUser(this.db, pool, poolUser, poolUserEstimate);
+        }
+      }
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);
         break;

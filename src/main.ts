@@ -1,7 +1,7 @@
 import { SorobanRpc } from '@stellar/stellar-sdk';
 import { fork } from 'child_process';
 import { runCollector } from './collector.js';
-import { EventType, PriceUpdateEvent } from './events.js';
+import { EventType, OracleScanEvent, PriceUpdateEvent, UserRefreshEvent } from './events.js';
 import { PoolEventHandler } from './pool_event_handler.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
@@ -75,11 +75,24 @@ async function main() {
   console.log('Auctioneer started successfully.');
 
   // update price on startup
-  const event: PriceUpdateEvent = {
+  const priveEvent: PriceUpdateEvent = {
     type: EventType.PRICE_UPDATE,
     timestamp: Date.now(),
   };
-  sendEvent(worker, event);
+  sendEvent(worker, priveEvent);
+  // update price on startup
+  const oracleEvent: OracleScanEvent = {
+    type: EventType.ORACLE_SCAN,
+    timestamp: Date.now(),
+  };
+  sendEvent(worker, oracleEvent);
+  // pull in new manually added users (updated ledger = 0)
+  const userEvent: UserRefreshEvent = {
+    type: EventType.USER_REFRESH,
+    timestamp: Date.now(),
+    cutoff: 0,
+  };
+  sendEvent(worker, userEvent);
 
   collectorInterval = setInterval(async () => {
     try {

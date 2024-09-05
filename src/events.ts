@@ -3,9 +3,10 @@ import { PoolEvent } from '@blend-capital/blend-sdk';
 export enum EventType {
   LEDGER = 'ledger',
   PRICE_UPDATE = 'price_update',
-  PRICE_SPIKE = 'price_spike',
+  ORACLE_SCAN = 'oracle_scan',
   LIQ_SCAN = 'liq_scan',
   POOL_EVENT = 'pool_event',
+  USER_REFRESH = 'user_refresh',
 }
 
 // ********* Shared **********
@@ -13,9 +14,10 @@ export enum EventType {
 export type AppEvent =
   | LedgerEvent
   | PriceUpdateEvent
-  | PriceSpikeEvent
+  | OracleScanEvent
   | LiqScanEvent
-  | PoolEventEvent;
+  | PoolEventEvent
+  | UserRefreshEvent;
 
 /**
  * Base interface for all events.
@@ -33,6 +35,14 @@ export interface LedgerEvent extends BaseEvent {
   ledger: number;
 }
 
+/**
+ * Event to react to a pool event.
+ */
+export interface PoolEventEvent extends BaseEvent {
+  type: EventType.POOL_EVENT;
+  event: PoolEvent;
+}
+
 // ********** Work Queue Only **********
 
 /**
@@ -43,11 +53,10 @@ export interface PriceUpdateEvent extends BaseEvent {
 }
 
 /**
- * Event to react to a price spike of a pool asset.
+ * Check for changes in oracle prices and any potential liquidations due to oracle fluctuations.
  */
-export interface PriceSpikeEvent extends BaseEvent {
-  type: EventType.PRICE_SPIKE;
-  asset: string;
+export interface OracleScanEvent extends BaseEvent {
+  type: EventType.ORACLE_SCAN;
 }
 
 /**
@@ -58,9 +67,12 @@ export interface LiqScanEvent extends BaseEvent {
 }
 
 /**
- * Event to react to a pool event.
+ * Event to refresh user old user data.
  */
-export interface PoolEventEvent extends BaseEvent {
-  type: EventType.POOL_EVENT;
-  event: PoolEvent;
+export interface UserRefreshEvent extends BaseEvent {
+  type: EventType.USER_REFRESH;
+  /**
+   * The cutoff ledger such that any user data older than this will be refreshed.
+   */
+  cutoff: number;
 }

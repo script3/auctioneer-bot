@@ -1,13 +1,14 @@
 import { PoolEventType } from '@blend-capital/blend-sdk';
 import { canFillerBid } from './auction.js';
 import { PoolEventEvent } from './events.js';
+import { updateUser } from './user.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType, UserEntry } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
-import { SorobanHelper } from './utils/soroban_helper.js';
 import { sendSlackNotification } from './utils/slack_notifier.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 200;
@@ -70,33 +71,7 @@ export class PoolEventHandler {
         // update the user in the db
         const { estimate: userPositionsEstimate, user } =
           await this.sorobanHelper.loadUserPositionEstimate(poolEvent.event.from);
-        if (user.positions.liabilities.size !== 0) {
-          // user has liabilities, update db entry
-          let collateralAddress = new Map<string, bigint>();
-          for (let [assetIndex, amount] of user.positions.collateral) {
-            const asset = pool.config.reserveList[assetIndex];
-            collateralAddress.set(asset, amount);
-          }
-          let liabilitiesAddress = new Map<string, bigint>();
-          for (let [assetIndex, amount] of user.positions.liabilities) {
-            const asset = pool.config.reserveList[assetIndex];
-            liabilitiesAddress.set(asset, amount);
-          }
-          const new_entry: UserEntry = {
-            user_id: poolEvent.event.from,
-            health_factor:
-              userPositionsEstimate.totalEffectiveCollateral /
-              userPositionsEstimate.totalEffectiveLiabilities,
-            collateral: collateralAddress,
-            liabilities: liabilitiesAddress,
-            updated: poolEvent.event.ledger,
-          };
-          let result = this.db.setUserEntry(new_entry);
-          logger.info(`Updated user entry: ${stringify(result)}`);
-        } else {
-          // user does not have liabilities, remove db entry if it exists
-          this.db.deleteUserEntry(poolEvent.event.from);
-        }
+        updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
         break;
       }
       case PoolEventType.NewAuction: {

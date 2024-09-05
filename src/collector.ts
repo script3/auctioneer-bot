@@ -5,14 +5,16 @@ import {
   EventType,
   LedgerEvent,
   LiqScanEvent,
+  OracleScanEvent,
   PoolEventEvent,
   PriceUpdateEvent,
+  UserRefreshEvent,
 } from './events.js';
 import { PoolEventHandler } from './pool_event_handler.js';
 import { AuctioneerDatabase } from './utils/db.js';
+import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
-import { stringify } from './utils/json.js';
 
 export async function runCollector(
   worker: ChildProcess,
@@ -47,8 +49,27 @@ export async function runCollector(
       };
       sendEvent(worker, event);
     }
-    if (latestLedger % 300 === 0) {
-      // approx every 30m
+    if (latestLedger % 60 === 0) {
+      // approx every 5m
+      // send an oracle scan event
+      const event: OracleScanEvent = {
+        type: EventType.ORACLE_SCAN,
+        timestamp: Date.now(),
+      };
+      sendEvent(worker, event);
+    }
+    if (latestLedger % 1203 === 0) {
+      // approx every 2hr
+      // send a user update event to update any users that have not been updated in ~2 weeks
+      const event: UserRefreshEvent = {
+        type: EventType.USER_REFRESH,
+        timestamp: Date.now(),
+        cutoff: Math.max(latestLedger - 14 * 17280, 0),
+      };
+      sendEvent(worker, event);
+    }
+    if (latestLedger % 1207 === 0) {
+      // approx every 2hr
       // send a liq scan event
       const event: LiqScanEvent = {
         type: EventType.LIQ_SCAN,
