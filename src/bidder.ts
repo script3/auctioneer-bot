@@ -59,7 +59,12 @@ async function main() {
               sorobanHelper,
               db
             );
-            const logMessage = `Auction Calculation\n Type: ${AuctionType[auction.auction_type]}\nUser: ${auction.user_id}\nCalculation: ${stringify(fillCalculation, 2)}\n Ledgers To Fill In: ${fillCalculation.fillBlock - nextLedger}\n`;
+            const logMessage =
+              `Auction Calculation\n` +
+              `Type: ${AuctionType[auction.auction_type]}\n` +
+              `User: ${auction.user_id}\n` +
+              `Calculation: ${stringify(fillCalculation, 2)}\n` +
+              `Ledgers To Fill In: ${fillCalculation.fillBlock - nextLedger}\n`;
             if (auction.fill_block === 0) {
               await sendSlackNotification(logMessage);
             }

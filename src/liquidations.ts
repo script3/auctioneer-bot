@@ -4,6 +4,7 @@ import { AuctioneerDatabase, AuctionType, UserEntry } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission, WorkSubmissionType } from './work_submitter.js';
+import { APP_CONFIG } from './utils/config.js';
 
 /**
  * Check if a user is liquidatable
@@ -12,6 +13,14 @@ import { WorkSubmission, WorkSubmissionType } from './work_submitter.js';
  */
 export function isLiquidatable(user: PositionsEstimate): boolean {
   if (user.totalEffectiveCollateral / user.totalEffectiveLiabilities < 0.99) {
+    return true;
+  }
+  return false;
+}
+
+export function isBadDebt(user: PositionsEstimate): boolean {
+  const healthFactor = user.totalEffectiveCollateral / user.totalEffectiveLiabilities;
+  if (healthFactor <= 0 && user.totalEffectiveLiabilities > 0) {
     return true;
   }
   return false;
@@ -45,17 +54,25 @@ export async function scanUsers(
   sorobanHelper: SorobanHelper
 ): Promise<WorkSubmission[]> {
   let users = db.getUserEntriesUnderHealthFactor(1.2);
-  return checkUsersForLiquidations(db, sorobanHelper, users);
+
+  users.push({
+    user_id: APP_CONFIG.backstopAddress,
+    health_factor: 0,
+    collateral: new Map(),
+    liabilities: new Map(),
+    updated: 0,
+  });
+  return checkUsersForLiquidationsAndBadDebt(db, sorobanHelper, users);
 }
 
 /**
- * Check a provided list of users for liquidations
+ * Check a provided list of users for liquidations and bad debt
  * @param db - The database
  * @param sorobanHelper - The soroban helper
  * @param users - The list of users to check
  * @returns A list of liquidations to be submitted
  */
-export async function checkUsersForLiquidations(
+export async function checkUsersForLiquidationsAndBadDebt(
   db: AuctioneerDatabase,
   sorobanHelper: SorobanHelper,
   users: UserEntry[]
@@ -65,7 +82,17 @@ export async function checkUsersForLiquidations(
   let submissions: WorkSubmission[] = [];
   for (let user of users) {
     // Check if the user already has a liquidation auction
-    if ((await sorobanHelper.loadAuction(user.user_id, AuctionType.Liquidation)) === undefined) {
+    if (user.user_id === APP_CONFIG.backstopAddress) {
+      const { estimate: backstopPostionsEstimate, user: _ } =
+        await sorobanHelper.loadUserPositionEstimate(user.user_id);
+      if (isLiquidatable(backstopPostionsEstimate)) {
+        submissions.push({
+          type: WorkSubmissionType.BadDebtAuction,
+        });
+      }
+    } else if (
+      (await sorobanHelper.loadAuction(user.user_id, AuctionType.Liquidation)) === undefined
+    ) {
       const { estimate: poolUserEstimate, user: poolUser } =
         await sorobanHelper.loadUserPositionEstimate(user.user_id);
       updateUser(db, pool, poolUser, poolUserEstimate);
@@ -75,6 +102,12 @@ export async function checkUsersForLiquidations(
           type: WorkSubmissionType.LiquidateUser,
           user: user.user_id,
           liquidationPercent: liquidationPercent,
+        });
+      }
+      if (isBadDebt(poolUserEstimate)) {
+        submissions.push({
+          type: WorkSubmissionType.BadDebtTransfer,
+          user: user.user_id,
         });
       }
     }

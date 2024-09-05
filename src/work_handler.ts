@@ -1,5 +1,5 @@
 import { AppEvent, EventType } from './events.js';
-import { checkUsersForLiquidations, scanUsers } from './liquidations.js';
+import { checkUsersForLiquidationsAndBadDebt, scanUsers } from './liquidations.js';
 import { OracleHistory } from './oracle_history.js';
 import { updateUser } from './user.js';
 import { AuctioneerDatabase, UserEntry } from './utils/db.js';
@@ -91,7 +91,7 @@ export class WorkHandler {
             usersToCheck.add(user);
           }
         }
-        const liquidations = await checkUsersForLiquidations(
+        const liquidations = await checkUsersForLiquidationsAndBadDebt(
           this.db,
           soroban_helper,
           Array.from(usersToCheck)

@@ -133,7 +133,14 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           sorobanHelper,
           this.db
         );
-        let logMessage = `Successful bid on auction\nType: ${AuctionType[auctionBid.auctionEntry.auction_type]}\nUser: ${auctionBid.auctionEntry.user_id}\nFiller: ${auctionBid.filler.name}\nFill Percent ${fillCalculation.fillPercent}\nLedger Fill Delta ${result.ledger - auctionBid.auctionEntry.start_block}\nHash ${result.txHash}\n`;
+        let logMessage =
+          `Successful bid on auction\n` +
+          `Type: ${AuctionType[auctionBid.auctionEntry.auction_type]}\n` +
+          `User: ${auctionBid.auctionEntry.user_id}\n` +
+          `Filler: ${auctionBid.filler.name}\n` +
+          `Fill Percent ${fillCalculation.fillPercent}\n` +
+          `Ledger Fill Delta ${result.ledger - auctionBid.auctionEntry.start_block}\n` +
+          `Hash ${result.txHash}\n`;
         await sendSlackNotification(logMessage);
         logger.info(logMessage);
         this.db.setFilledAuctionEntry({
@@ -153,7 +160,11 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       }
       return true;
     } catch (e: any) {
-      const logMessage = `Error submitting fill for auction\nType: ${auctionBid.auctionEntry.auction_type}\nUser: ${auctionBid.auctionEntry.user_id}\nFiller: ${auctionBid.filler.name}\nError: ${e}\n`;
+      const logMessage =
+        `Error submitting fill for auction\n` +
+        `Type: ${auctionBid.auctionEntry.auction_type}\n` +
+        `User: ${auctionBid.auctionEntry.user_id}\n` +
+        `Filler: ${auctionBid.filler.name}\nError: ${e}\n`;
       await sendSlackNotification(`<!channel>` + logMessage);
       logger.error(logMessage);
       return false;
