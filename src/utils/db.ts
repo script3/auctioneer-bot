@@ -392,6 +392,25 @@ export class AuctioneerDatabase {
   }
 
   /**
+   * Get an ongoing auction from the database.
+   * @param user_id - The auction's source address
+   * @param auction_type - The auction's type
+   * @returns The result of the sql operation
+   */
+  getAuctionEntry(user_id: string, auction_type: AuctionType): AuctionEntry | undefined {
+    try {
+      return this.db
+        .prepare('SELECT * FROM auctions WHERE user_id = ? AND auction_type = ?')
+        .get(user_id, auction_type) as AuctionEntry | undefined;
+    } catch (error: any) {
+      logger.error(
+        `Error getting auction entry. user_id=${user_id} type=${auction_type} : ${error}`
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get all ongoing auction from the database.
    * @param user_id - The auction's source address
    * @param auction_type - The auction's type
