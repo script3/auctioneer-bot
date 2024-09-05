@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "build:docker": "npm run build && docker build -t auctioneer-bot .",
+    "build:docker-arm": "npm run build && docker buildx build --platform=linux/arm64 -t auctioneer-bot-arm .",
+    "build:docker-x86": "npm run build && docker buildx build --platform=linux/amd64 -t auctioneer-bot-x86 .",
     "test": "jest --config jest.config.cjs"
   },
   "author": "gm@script3.io",

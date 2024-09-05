@@ -1,6 +1,6 @@
-FROM node:20
+FROM node:20-alpine
 
-RUN apt-get update && apt-get install -y sqlite3
+RUN apk add --no-cache sqlite bash
 
 WORKDIR /app
 
