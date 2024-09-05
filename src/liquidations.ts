@@ -21,6 +21,11 @@ export function isLiquidatable(user: PositionsEstimate): boolean {
   return false;
 }
 
+/**
+ * Check if a user had bad debt
+ * @param user - The positions estimate of the user
+ * @returns True if the user has bad debt, false otherwise
+ */
 export function isBadDebt(user: PositionsEstimate): boolean {
   const healthFactor = user.totalEffectiveCollateral / user.totalEffectiveLiabilities;
   if (healthFactor <= 0 && user.totalEffectiveLiabilities > 0) {

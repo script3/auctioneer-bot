@@ -168,6 +168,14 @@ export function scaleAuction(
   return scaledAuction;
 }
 
+/**
+ * Build requests to fill the auction and clear the filler's position.
+ * @param auctionBid - The auction to build the fill requests for
+ * @param auctionData - The auction data to build the fill requests for
+ * @param fillPercent - The percent to fill the auction
+ * @param sorobanHelper - The soroban helper to use for loading ledger data
+ * @returns
+ */
 export async function buildFillRequests(
   auctionBid: AuctionBid,
   auctionData: AuctionData,
@@ -254,6 +262,14 @@ export async function buildFillRequests(
   return fillRequests;
 }
 
+/**
+ * Calculate the effective collateral, lot value, effective liabilities, and bid value for an auction.
+ * @param auctionType - The type of auction to calculate the values for
+ * @param auctionData - The auction data to calculate the values for
+ * @param sorobanHelper - A helper to use for loading ledger data
+ * @param db - The database to use for fetching asset prices
+ * @returns
+ */
 export async function calculateAuctionValue(
   auctionType: AuctionType,
   auctionData: AuctionData,
