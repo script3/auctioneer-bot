@@ -71,7 +71,7 @@ describe('AuctioneerDatabase', () => {
     };
     db.setUserEntry(user1);
     const user2: UserEntry = {
-      user_id: 'user1',
+      user_id: 'user2',
       health_factor: 1.0,
       collateral: new Map([['asset1', BigInt(100)]]),
       liabilities: new Map([['asset1', BigInt(50)]]),

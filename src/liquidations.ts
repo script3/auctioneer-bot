@@ -12,7 +12,10 @@ import { APP_CONFIG } from './utils/config.js';
  * @returns true if the user is liquidatable, false otherwise
  */
 export function isLiquidatable(user: PositionsEstimate): boolean {
-  if (user.totalEffectiveCollateral / user.totalEffectiveLiabilities < 0.99) {
+  if (
+    user.totalEffectiveLiabilities > 0 &&
+    user.totalEffectiveCollateral / user.totalEffectiveLiabilities < 0.99
+  ) {
     return true;
   }
   return false;
