@@ -257,7 +257,7 @@ export class AuctioneerDatabase {
       return entries.map((entry) => {
         return {
           user_id: entry.user_id,
-          health_factor: entry.balance,
+          health_factor: entry.health_factor,
           collateral: parse<Map<string, bigint>>(entry.collateral),
           liabilities: parse<Map<string, bigint>>(entry.liabilities),
           updated: entry.updated,
@@ -278,11 +278,11 @@ export class AuctioneerDatabase {
     try {
       let entries: any[] = this.db
         .prepare('SELECT * FROM users WHERE json_extract(liabilities, ?) IS NOT NULL')
-        .all(`'$.value.${assetId}'`);
+        .all(`$.value.${assetId}`);
       return entries.map((entry) => {
         return {
           user_id: entry.user_id,
-          health_factor: entry.balance,
+          health_factor: entry.health_factor,
           collateral: parse<Map<string, bigint>>(entry.collateral),
           liabilities: parse<Map<string, bigint>>(entry.liabilities),
           updated: entry.updated,
@@ -303,11 +303,11 @@ export class AuctioneerDatabase {
     try {
       let entries: any[] = this.db
         .prepare('SELECT * FROM users WHERE json_extract(collateral, ?) IS NOT NULL')
-        .all(`'$.value.${assetId}'`);
+        .all(`$.value.${assetId}`);
       return entries.map((entry) => {
         return {
           user_id: entry.user_id,
-          health_factor: entry.balance,
+          health_factor: entry.health_factor,
           collateral: parse<Map<string, bigint>>(entry.collateral),
           liabilities: parse<Map<string, bigint>>(entry.liabilities),
           updated: entry.updated,
@@ -332,7 +332,7 @@ export class AuctioneerDatabase {
       return entries.map((entry) => {
         return {
           user_id: entry.user_id,
-          health_factor: entry.balance,
+          health_factor: entry.health_factor,
           collateral: parse<Map<string, bigint>>(entry.collateral),
           liabilities: parse<Map<string, bigint>>(entry.liabilities),
           updated: entry.updated,

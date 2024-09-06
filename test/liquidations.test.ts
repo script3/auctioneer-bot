@@ -1,7 +1,7 @@
-import { PositionsEstimate } from '@blend-capital/blend-sdk';
+import { PoolUser, Positions, PositionsEstimate } from '@blend-capital/blend-sdk';
 import { calculateLiquidationPercent, isLiquidatable, scanUsers } from '../src/liquidations.js';
 import { AuctioneerDatabase } from '../src/utils/db.js';
-import { SorobanHelper } from '../src/utils/soroban_helper.js';
+import { PoolUserEst, SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
   inMemoryAuctioneerDb,
   mockedPool,
@@ -18,7 +18,9 @@ jest.mock('../src/utils/logger.js', () => ({
 }));
 jest.mock('../src/utils/config.js', () => {
   return {
-    APP_CONFIG: {},
+    APP_CONFIG: {
+      backstopAddress: 'backstopAddress',
+    },
   };
 });
 
@@ -89,11 +91,18 @@ describe('calculateLiquidationPercent', () => {
 describe('scanUsers', () => {
   let db: AuctioneerDatabase;
   let mockedSorobanHelper: jest.Mocked<SorobanHelper>;
-
+  let mockBackstopPositions: PoolUser;
+  let mockBackstopPositionsEstimate: PositionsEstimate;
   beforeEach(() => {
     db = inMemoryAuctioneerDb();
     mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
     mockedSorobanHelper.loadPool.mockResolvedValue(mockedPool);
+    mockBackstopPositions = new PoolUser(
+      'backstopAddress',
+      new Positions(new Map(), new Map(), new Map()),
+      new Map()
+    );
+    mockBackstopPositionsEstimate = new PositionsEstimate(0, 0, 0, 0, 0, 0, 0, 0, 0);
   });
 
   it('should create a work submission for liquidatable users', async () => {
@@ -110,9 +119,19 @@ describe('scanUsers', () => {
       liabilities: new Map(),
       updated: 123,
     });
-    mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
-      estimate: mockPoolUserEstimate,
-      user: mockPoolUser,
+    mockedSorobanHelper.loadUserPositionEstimate.mockImplementation((address: string) => {
+      if (address === mockPoolUser.userId) {
+        return Promise.resolve({
+          estimate: mockPoolUserEstimate,
+          user: mockPoolUser,
+        } as PoolUserEst);
+      } else if (address === 'backstopAddress') {
+        return Promise.resolve({
+          estimate: mockBackstopPositionsEstimate,
+          user: mockBackstopPositions,
+        } as PoolUserEst);
+      }
+      return Promise.resolve({ estimate: {}, user: {} } as PoolUserEst);
     });
     mockedSorobanHelper.loadAuction.mockResolvedValue(undefined);
 
@@ -134,9 +153,19 @@ describe('scanUsers', () => {
       liabilities: new Map(),
       updated: 123,
     });
-    mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
-      estimate: mockPoolUserEstimate,
-      user: mockPoolUser,
+    mockedSorobanHelper.loadUserPositionEstimate.mockImplementation((address: string) => {
+      if (address === mockPoolUser.userId) {
+        return Promise.resolve({
+          estimate: mockPoolUserEstimate,
+          user: mockPoolUser,
+        } as PoolUserEst);
+      } else if (address === 'backstopAddress') {
+        return Promise.resolve({
+          estimate: mockBackstopPositionsEstimate,
+          user: mockBackstopPositions,
+        } as PoolUserEst);
+      }
+      return Promise.resolve({ estimate: {}, user: {} } as PoolUserEst);
     });
     mockedSorobanHelper.loadAuction.mockResolvedValue({
       bid: new Map(),
