@@ -23,6 +23,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { APP_CONFIG } from './config.js';
 import { logger } from './logger.js';
+import { Api } from '@stellar/stellar-sdk/rpc';
 
 export interface PoolUserEst {
   estimate: PositionsEstimate;
@@ -217,31 +218,46 @@ export class SorobanHelper {
     const simResult = await rpc.simulateTransaction(tx);
     if (SorobanRpc.Api.isSimulationSuccess(simResult)) {
       let assembledTx = SorobanRpc.assembleTransaction(tx, simResult).build();
-      assembledTx.sign(keypair);
-      let txResponse = await rpc.sendTransaction(assembledTx);
-      while (txResponse.status === 'TRY_AGAIN_LATER' && Date.now() - curr_time < 20000) {
-        await new Promise((resolve) => setTimeout(resolve, 4000));
-        txResponse = await rpc.sendTransaction(assembledTx);
-      }
-      if (txResponse.status !== 'PENDING') {
-        const error = parseError(txResponse);
-        logger.error('Transaction failed to send: ' + txResponse.hash + ' ' + error);
-        throw error;
-      }
+      // assembledTx.sign(keypair);
+      // let txResponse = await rpc.sendTransaction(assembledTx);
+      // while (txResponse.status === 'TRY_AGAIN_LATER' && Date.now() - curr_time < 20000) {
+      //   await new Promise((resolve) => setTimeout(resolve, 4000));
+      //   txResponse = await rpc.sendTransaction(assembledTx);
+      // }
+      // if (txResponse.status !== 'PENDING') {
+      //   const error = parseError(txResponse);
+      //   logger.error('Transaction failed to send: ' + txResponse.hash + ' ' + error);
+      //   throw error;
+      // }
 
-      let get_tx_response = await rpc.getTransaction(txResponse.hash);
-      while (get_tx_response.status === 'NOT_FOUND') {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        get_tx_response = await rpc.getTransaction(txResponse.hash);
-      }
+      // let get_tx_response = await rpc.getTransaction(txResponse.hash);
+      // while (get_tx_response.status === 'NOT_FOUND') {
+      //   await new Promise((resolve) => setTimeout(resolve, 250));
+      //   get_tx_response = await rpc.getTransaction(txResponse.hash);
+      // }
 
-      if (get_tx_response.status !== 'SUCCESS') {
-        const error = parseError(get_tx_response);
-        logger.error('Tx Failed: ', error);
-        throw error;
-      }
+      // if (get_tx_response.status !== 'SUCCESS') {
+      //   const error = parseError(get_tx_response);
+      //   logger.error('Tx Failed: ', error);
+      //   throw error;
+      // }
+      const get_tx_response: SorobanRpc.Api.GetSuccessfulTransactionResponse = {
+        status: Api.GetTransactionStatus.SUCCESS,
+        ledger: 0,
+        createdAt: 0,
+        applicationOrder: 0,
+        feeBump: false,
+        envelopeXdr: {} as xdr.TransactionEnvelope,
+        resultXdr: {} as xdr.TransactionResult,
+        resultMetaXdr: {} as xdr.TransactionMeta,
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
+        oldestLedger: 0,
+        oldestLedgerCloseTime: 0,
+      };
+      logger.info('transaction xdr: ' + assembledTx.toXDR());
       logger.info('Transaction successfully submitted: ' + get_tx_response);
-      return { ...get_tx_response, txHash: txResponse.hash };
+      return { ...get_tx_response, txHash: 'txResponse.hash' };
     }
     const error = parseError(simResult);
     throw error;

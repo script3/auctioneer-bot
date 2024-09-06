@@ -27,8 +27,7 @@ export function isLiquidatable(user: PositionsEstimate): boolean {
  * @returns True if the user has bad debt, false otherwise
  */
 export function isBadDebt(user: PositionsEstimate): boolean {
-  const healthFactor = user.totalEffectiveCollateral / user.totalEffectiveLiabilities;
-  if (healthFactor <= 0 && user.totalEffectiveLiabilities > 0) {
+  if (user.totalEffectiveCollateral === 0 && user.totalEffectiveLiabilities > 0) {
     return true;
   }
   return false;
@@ -87,7 +86,10 @@ export async function checkUsersForLiquidationsAndBadDebt(
     if (user === APP_CONFIG.backstopAddress) {
       const { estimate: backstopPostionsEstimate, user: _ } =
         await sorobanHelper.loadUserPositionEstimate(user);
-      if (isLiquidatable(backstopPostionsEstimate)) {
+      if (
+        isLiquidatable(backstopPostionsEstimate) &&
+        (await sorobanHelper.loadAuction(user, AuctionType.BadDebt)) === undefined
+      ) {
         submissions.push({
           type: WorkSubmissionType.BadDebtAuction,
         });
