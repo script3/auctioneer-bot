@@ -28,6 +28,7 @@ async function main() {
         logger.info(`Processing for ledger: ${nextLedger}`);
         const auctions = db.getAllAuctionEntries();
         const sorobanHelper = new SorobanHelper();
+        db.setStatusEntry({ name: 'bidder', latest_ledger: appEvent.ledger });
 
         for (let auction of auctions) {
           const filler = APP_CONFIG.fillers.find((f) => f.keypair.publicKey() === auction.filler);

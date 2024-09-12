@@ -1,3 +1,5 @@
+import { Server } from '@stellar/stellar-sdk/rpc';
+import { EventType } from './events.js';
 import { OracleHistory } from './oracle_history.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
@@ -19,6 +21,9 @@ async function main() {
         logger.info(`Processing: ${message?.data}`);
         const sorobanHelper = new SorobanHelper();
         const eventHandler = new WorkHandler(db, submissionQueue, oracleHistory, sorobanHelper);
+        const rpc = new Server(sorobanHelper.network.rpc, sorobanHelper.network.opts);
+        const latestLedger = (await rpc.getLatestLedger()).sequence;
+        db.setStatusEntry({ name: 'worker', latest_ledger: latestLedger });
         await eventHandler.processEventWithRetryAndDeadletter(appEvent);
         logger.info(
           `Finished: ${message?.data} in ${Date.now() - timer}ms with delay ${timer - appEvent.timestamp}ms`

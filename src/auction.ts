@@ -5,6 +5,7 @@ import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctionBid } from './bidder_submitter.js';
 import { Asset } from '@stellar/stellar-sdk';
+import { logger } from './utils/logger.js';
 interface FillCalculation {
   fillBlock: number;
   fillPercent: number;
@@ -38,7 +39,9 @@ export async function calculateBlockFillAndPercent(
 
   let fillBlockDelay = 0;
   let fillPercent = 100;
-
+  logger.info(
+    `Auction Valuation: Effective Collateral: ${effectiveCollateral}, Effective Liabilities: ${effectiveLiabilities}, Lot Value: ${lotValue}, Bid Value: ${bidValue}`
+  );
   if (lotValue >= bidValue * (1 + filler.minProfitPct)) {
     const minLotAmount = bidValue * (1 + filler.minProfitPct);
     fillBlockDelay = 200 - (lotValue - minLotAmount) / (lotValue / 200);
