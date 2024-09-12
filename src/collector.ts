@@ -84,16 +84,36 @@ export async function runCollector(
       statusEntry.latest_ledger === 0 ? latestLedger : statusEntry.latest_ledger + 1;
     // if we are too far behind, start from 17270 ledgers ago (default max ledger history is 17280)
     start_ledger = Math.max(start_ledger, latestLedger - 17270);
-    let events = await rpc._getEvents({
-      startLedger: start_ledger,
-      filters: [
-        {
-          type: 'contract',
-          contractIds: [poolAddress],
-        },
-      ],
-      limit: 100,
-    });
+    let events: SorobanRpc.Api.RawGetEventsResponse;
+    try {
+      events = await rpc._getEvents({
+        startLedger: start_ledger,
+        filters: [
+          {
+            type: 'contract',
+            contractIds: [poolAddress],
+          },
+        ],
+        limit: 100,
+      });
+    } catch (e: any) {
+      // Handles the case where the rpc server is restarted and no longer has events from the start ledger we requested
+      if (e.code === -32600) {
+        console.log('Retrying with latest ledger');
+        events = await rpc._getEvents({
+          startLedger: latestLedger,
+          filters: [
+            {
+              type: 'contract',
+              contractIds: [poolAddress],
+            },
+          ],
+          limit: 100,
+        });
+      } else {
+        throw e;
+      }
+    }
     let cursor = '';
     while (events.events.length > 0) {
       for (const raw_event of events.events) {
