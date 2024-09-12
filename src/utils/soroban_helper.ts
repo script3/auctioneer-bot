@@ -125,7 +125,7 @@ export class SorobanHelper {
     );
   }
 
-  async simLPTokenToUSDC(amount: number): Promise<number | undefined> {
+  async simLPTokenToUSDC(amount: bigint): Promise<bigint | undefined> {
     try {
       let comet = new Contract(APP_CONFIG.backstopTokenAddress);
       let op = comet.call(
@@ -149,7 +149,7 @@ export class SorobanHelper {
 
       let result = await rpc.simulateTransaction(tx);
       if (SorobanRpc.Api.isSimulationSuccess(result) && result.result?.retval) {
-        return scValToNative(result.result.retval) as number;
+        return scValToNative(result.result.retval);
       }
       return undefined;
     } catch (e) {
@@ -158,7 +158,7 @@ export class SorobanHelper {
     }
   }
 
-  async simBalance(tokenId: string, userId: string): Promise<number> {
+  async simBalance(tokenId: string, userId: string): Promise<bigint> {
     try {
       let contract = new Contract(tokenId);
       let op = contract.call('balance', ...[nativeToScVal(userId, { type: 'address' })]);
@@ -174,13 +174,13 @@ export class SorobanHelper {
 
       let result = await rpc.simulateTransaction(tx);
       if (SorobanRpc.Api.isSimulationSuccess(result) && result.result?.retval) {
-        return Number(scValToNative(result.result.retval));
+        return scValToNative(result.result.retval);
       } else {
-        return 0;
+        return 0n;
       }
     } catch (e) {
       logger.error(`Error fetching balance: ${e}`);
-      return 0;
+      return 0n;
     }
   }
 
