@@ -1,4 +1,4 @@
-import { AuctionData, Request, RequestType } from '@blend-capital/blend-sdk';
+import { AuctionData, FixedMath, Request, RequestType } from '@blend-capital/blend-sdk';
 import { Filler } from './utils/config.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { AuctioneerDatabase, AuctionType } from './utils/db.js';
@@ -63,7 +63,7 @@ export async function calculateBlockFillAndPercent(
         : Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!) *
           (1 - (fillBlockDelay - 200) / 200);
     if (cometLpTokenBalance < cometLpBid) {
-      const additionalCometLp = cometLpBid - cometLpTokenBalance;
+      const additionalCometLp = cometLpBid - FixedMath.toFloat(cometLpTokenBalance, 7);
       const bidStepSize = Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)) / 200;
 
       if (additionalCometLp >= 0 && bidStepSize > 0) {
@@ -222,10 +222,17 @@ export async function buildFillRequests(
 
       // Ensure the filler has XLM to pay for the transaction
       if (assetId === Asset.native().contractId(APP_CONFIG.networkPassphrase)) {
-        fillerBalance = fillerBalance > 100 * 1e7 ? fillerBalance - 100 * 1e7 : 0;
+        fillerBalance =
+          fillerBalance > FixedMath.toFixed(100, 7)
+            ? fillerBalance - FixedMath.toFixed(100, 7)
+            : 0n;
       }
       if (reserve !== undefined && fillerBalance > 0) {
-        const liabilityLeft = Math.max(0, Number(amount) - fillerBalance);
+        const liabilityLeft = Math.max(
+          0,
+          FixedMath.toFloat(amount, reserve.config.decimals) -
+            FixedMath.toFloat(fillerBalance, reserve.config.decimals)
+        );
         const effectiveLiabilityIncrease =
           reserve.toEffectiveAssetFromDTokenFloat(BigInt(liabilityLeft)) * oraclePrice;
         fillerPositionEstimates.totalEffectiveLiabilities += effectiveLiabilityIncrease;
@@ -306,14 +313,14 @@ export async function calculateAuctionValue(
       }
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
-      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(amount);
       if (lpTokenValue !== undefined) {
-        lotValue += lpTokenValue;
+        lotValue += FixedMath.toFloat(lpTokenValue, 7);
       }
       // Approximate the value of the comet tokens if simulation fails
       else {
         const backstopToken = await sorobanHelper.loadBackstopToken();
-        lotValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
+        lotValue += FixedMath.toFloat(amount, 7) * backstopToken.lpTokenPrice;
       }
     } else {
       throw new Error(`Failed to value lot asset: ${assetId}`);
@@ -335,12 +342,12 @@ export async function calculateAuctionValue(
       bidValue += reserve.toAssetFromDTokenFloat(amount) * (dbPrice ?? oraclePrice);
     } else if (assetId === APP_CONFIG.backstopTokenAddress) {
       // Simulate singled sided withdraw to USDC
-      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(Number(amount));
+      const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(amount);
       if (lpTokenValue !== undefined) {
-        bidValue += lpTokenValue;
+        bidValue += FixedMath.toFloat(lpTokenValue, 7);
       } else {
         const backstopToken = await sorobanHelper.loadBackstopToken();
-        bidValue += (Number(amount) * backstopToken.lpTokenPrice) / 1e7;
+        bidValue += FixedMath.toFloat(amount, 7) * backstopToken.lpTokenPrice;
       }
     } else {
       throw new Error(`Failed to value bid asset: ${assetId}`);
