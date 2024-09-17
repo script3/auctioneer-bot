@@ -99,7 +99,9 @@ export async function runCollector(
     } catch (e: any) {
       // Handles the case where the rpc server is restarted and no longer has events from the start ledger we requested
       if (e.code === -32600) {
-        console.log('Retrying with latest ledger');
+        logger.error(
+          `Error fetching events at start ledger: ${start_ledger}, retrying with latest ledger ${latestLedger} Error: ${e}`
+        );
         events = await rpc._getEvents({
           startLedger: latestLedger,
           filters: [
