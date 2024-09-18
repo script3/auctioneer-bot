@@ -74,7 +74,7 @@ export interface FilledAuctionEntry {
   // The block the auction was filled
   fill_block: number;
   // The timestamp (in s since epoch) the auction was filled
-  timestamp: string;
+  timestamp: number;
 }
 
 export class AuctioneerDatabase {

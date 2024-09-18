@@ -46,6 +46,6 @@ CREATE TABLE IF NOT EXISTS filled_auctions (
     lot_total REAL NOT NULL,
     est_profit REAL NOT NULL,
     fill_block INTEGER NOT NULL,
-    timestamp TEXT NOT NULL
+    timestamp INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_filler ON filled_auctions(filler);

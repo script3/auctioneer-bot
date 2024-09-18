@@ -154,7 +154,7 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           lot_total: filledAuctionValue.lotValue,
           est_profit: filledAuctionValue.lotValue - filledAuctionValue.bidValue,
           fill_block: result.ledger,
-          timestamp: new Date(result.latestLedgerCloseTime).toDateString(),
+          timestamp: result.latestLedgerCloseTime,
         });
         return true;
       }
