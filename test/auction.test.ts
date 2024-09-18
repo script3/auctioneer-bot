@@ -8,7 +8,7 @@ import {
 } from '../src/auction.js';
 import { AuctionBid, BidderSubmissionType } from '../src/bidder_submitter.js';
 import { Filler } from '../src/utils/config.js';
-import { AuctionType } from '../src/utils/db.js';
+import { AuctioneerDatabase, AuctionType } from '../src/utils/db.js';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
   inMemoryAuctioneerDb,
@@ -27,8 +27,8 @@ jest.mock('../src/utils/soroban_helper.js', () => {
         loadUserPositionEstimate: jest
           .fn()
           .mockReturnValue({ estimate: mockPoolUserEstimate, user: mockPoolUser }),
-        simLPTokenToUSDC: jest.fn().mockImplementation((number) => {
-          return number * 5;
+        simLPTokenToUSDC: jest.fn().mockImplementation((number: bigint) => {
+          return (number * 33333n) / 100000n;
         }),
         loadPoolOracle: jest.fn().mockReturnValue(mockPoolOracle),
       };
@@ -53,17 +53,23 @@ jest.mock('../src/utils/config.js', () => {
 });
 
 describe('calculateBlockFillAndPercent', () => {
-  let sorobanHelper = new SorobanHelper();
-  let filler: Filler = {
-    name: 'Tester',
-    keypair: Keypair.random(),
-    minProfitPct: 0.2,
-    minHealthFactor: 1.3,
-    forceFill: true,
-    supportedBid: [],
-    supportedLot: [],
-  };
-  let db = inMemoryAuctioneerDb();
+  let filler: Filler;
+  let sorobanHelper: SorobanHelper;
+  let db: AuctioneerDatabase;
+  beforeEach(() => {
+    sorobanHelper = new SorobanHelper();
+    filler = {
+      name: 'Tester',
+      keypair: Keypair.random(),
+      minProfitPct: 0.2,
+      minHealthFactor: 1.3,
+      forceFill: true,
+      supportedBid: [],
+      supportedLot: [],
+    };
+    db = inMemoryAuctioneerDb();
+  });
+
   it('test user liquidation expect fill under 200', async () => {
     let auctionData = {
       lot: new Map<string, bigint>([
@@ -86,7 +92,7 @@ describe('calculateBlockFillAndPercent', () => {
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
-  it('test user liquidation expect fill under 200', async () => {
+  it('test user liquidation expect fill over 200', async () => {
     let auctionData = {
       lot: new Map<string, bigint>([
         ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 10000_0000000n],
@@ -96,7 +102,7 @@ describe('calculateBlockFillAndPercent', () => {
       ]),
       block: 123,
     };
-
+    filler.forceFill = false;
     let fillCalc = await calculateBlockFillAndPercent(
       filler,
       AuctionType.Liquidation,
@@ -105,6 +111,27 @@ describe('calculateBlockFillAndPercent', () => {
       db
     );
     expect(fillCalc.fillBlock).toEqual(343);
+    expect(fillCalc.fillPercent).toEqual(100);
+  });
+
+  it('test force fill user liquidations sets fill to 198', async () => {
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 10000_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 90000_0000000n],
+      ]),
+      block: 123,
+    };
+    let fillCalc = await calculateBlockFillAndPercent(
+      filler,
+      AuctionType.Liquidation,
+      auctionData,
+      sorobanHelper,
+      db
+    );
+    expect(fillCalc.fillBlock).toEqual(321);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
@@ -123,7 +150,7 @@ describe('calculateBlockFillAndPercent', () => {
       ]),
       block: 123,
     };
-
+    filler.forceFill = false;
     let fillCalc = await calculateBlockFillAndPercent(
       filler,
       AuctionType.Liquidation,
@@ -139,9 +166,9 @@ describe('calculateBlockFillAndPercent', () => {
     sorobanHelper.loadUserPositionEstimate = jest
       .fn()
       .mockReturnValue({ estimate: mockPoolUserEstimate, user: mockPoolUser });
-    sorobanHelper.simBalance = jest.fn().mockReturnValue(5000_0000000);
+    sorobanHelper.simBalance = jest.fn().mockReturnValue(5000_0000000n);
     sorobanHelper.simLPTokenToUSDC = jest.fn().mockImplementation((number) => {
-      return (number / 1e7) * 0.33;
+      return (number * 33333n) / 100000n;
     });
     let auctionData = {
       lot: new Map<string, bigint>([
@@ -156,38 +183,46 @@ describe('calculateBlockFillAndPercent', () => {
 
     let fillCalc = await calculateBlockFillAndPercent(
       filler,
-      AuctionType.Liquidation,
+      AuctionType.Interest,
       auctionData,
       sorobanHelper,
       db
     );
-    expect(fillCalc.fillBlock).toEqual(417);
+    expect(fillCalc.fillBlock).toEqual(419);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 
-  it('test interest auction increases block fill delay to fully fill', async () => {
-    let filler: Filler = {
-      name: 'Tester',
-      keypair: Keypair.random(),
-      minProfitPct: 0.2,
-      minHealthFactor: 1.3,
-      forceFill: true,
-      supportedBid: [
-        'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
-        'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
-      ],
-      supportedLot: [
-        'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
-        'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
-      ],
-    };
+  it('test force fill for interest auction', async () => {
     sorobanHelper.loadUserPositionEstimate = jest
       .fn()
       .mockReturnValue({ estimate: mockPoolUserEstimate, user: mockPoolUser });
-    sorobanHelper.simBalance = jest.fn().mockReturnValue(2000_0000000);
+    sorobanHelper.simBalance = jest.fn().mockReturnValue(5000_0000000n);
     sorobanHelper.simLPTokenToUSDC = jest.fn().mockImplementation((number) => {
-      return (number / 1e7) * 0.33;
+      return (number * 33333n) / 100000n;
     });
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM', 5500_0000000n],
+      ]),
+      block: 123,
+    };
+
+    let fillCalc = await calculateBlockFillAndPercent(
+      filler,
+      AuctionType.Interest,
+      auctionData,
+      sorobanHelper,
+      db
+    );
+    expect(fillCalc.fillBlock).toEqual(473);
+    expect(fillCalc.fillPercent).toEqual(100);
+  });
+  it('test interest auction increases block fill delay to fully fill', async () => {
+    sorobanHelper.simBalance = jest.fn().mockReturnValue(2000_0000000n);
+
     let auctionData = {
       lot: new Map<string, bigint>([
         ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1000_0000000n],
@@ -197,7 +232,7 @@ describe('calculateBlockFillAndPercent', () => {
       ]),
       block: 123,
     };
-
+    filler.forceFill = false;
     let fillCalc = await calculateBlockFillAndPercent(
       filler,
       AuctionType.Interest,
@@ -210,28 +245,6 @@ describe('calculateBlockFillAndPercent', () => {
   });
 
   it('test bad debt auction', async () => {
-    let filler: Filler = {
-      name: 'Tester',
-      keypair: Keypair.random(),
-      minProfitPct: 0.2,
-      minHealthFactor: 1.3,
-      forceFill: true,
-      supportedBid: [
-        'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
-        'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
-      ],
-      supportedLot: [
-        'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
-        'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
-      ],
-    };
-    sorobanHelper.loadUserPositionEstimate = jest
-      .fn()
-      .mockReturnValue({ estimate: mockPoolUserEstimate, user: mockPoolUser });
-    sorobanHelper.simBalance = jest.fn().mockReturnValue(2000_0000000);
-    sorobanHelper.simLPTokenToUSDC = jest.fn().mockImplementation((number) => {
-      return (number / 1e7) * 0.33;
-    });
     let auctionData = {
       lot: new Map<string, bigint>([
         ['CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM', 456_0000000n],
@@ -245,12 +258,12 @@ describe('calculateBlockFillAndPercent', () => {
 
     let fillCalc = await calculateBlockFillAndPercent(
       filler,
-      AuctionType.Liquidation,
+      AuctionType.BadDebt,
       auctionData,
       sorobanHelper,
       db
     );
-    expect(fillCalc.fillBlock).toEqual(381);
+    expect(fillCalc.fillBlock).toEqual(380);
     expect(fillCalc.fillPercent).toEqual(100);
   });
 });
@@ -294,7 +307,7 @@ describe('calculateAuctionValue', () => {
     };
 
     let result = await calculateAuctionValue(AuctionType.Interest, auctionData, sorobanHelper, db);
-    expect(result.bidValue).toBeCloseTo(12345678_0000000 * 5);
+    expect(result.bidValue).toBeCloseTo(4115184.85);
     expect(result.lotValue).toBeCloseTo(1795.72);
     expect(result.effectiveCollateral).toBeCloseTo(0);
     expect(result.effectiveLiabilities).toBeCloseTo(0);
@@ -314,7 +327,7 @@ describe('calculateAuctionValue', () => {
 
     let result = await calculateAuctionValue(AuctionType.BadDebt, auctionData, sorobanHelper, db);
     expect(result.bidValue).toBeCloseTo(1808.6);
-    expect(result.lotValue).toBeCloseTo(12345678_0000000 * 5);
+    expect(result.lotValue).toBeCloseTo(4115184.85);
     expect(result.effectiveCollateral).toBeCloseTo(0);
     expect(result.effectiveLiabilities).toBeCloseTo(2061.66);
   });
@@ -404,9 +417,9 @@ describe('buildFillRequests', () => {
     };
     sorobanHelper.simBalance = jest.fn().mockImplementation((tokenId: string, userId: string) => {
       if (tokenId === 'CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK')
-        return 500_0000000;
+        return 500_0000000n;
       else if (tokenId === 'CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV')
-        return 10000_0000000;
+        return 10000_0000000n;
       else return 0;
     });
     let requests = await buildFillRequests(auctionBid, auctionData, 100, sorobanHelper);
@@ -466,9 +479,9 @@ describe('buildFillRequests', () => {
     };
     sorobanHelper.simBalance = jest.fn().mockImplementation((tokenId: string, userId: string) => {
       if (tokenId === 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA')
-        return 95000_0000000;
+        return 95000_0000000n;
       else if (tokenId === 'CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK')
-        return 500_0000000;
+        return 500_0000000n;
       else return 0;
     });
     let requests = await buildFillRequests(auctionBid, auctionData, 100, sorobanHelper);
@@ -532,12 +545,12 @@ describe('buildFillRequests', () => {
     };
     sorobanHelper.simBalance = jest.fn().mockImplementation((tokenId: string, userId: string) => {
       if (tokenId === 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA')
-        return 95000_0000000;
+        return 95000_0000000n;
       else if (tokenId === 'CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK')
-        return 500_0000000;
+        return 500_0000000n;
       else if (tokenId === 'CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV')
-        return 10000_0000000;
-      else return 0;
+        return 10000_0000000n;
+      else return 0n;
     });
     mockPoolUser.positions.collateral.set(
       mockedPool.config.reserveList.indexOf(
@@ -601,11 +614,11 @@ describe('buildFillRequests', () => {
     };
     sorobanHelper.simBalance = jest.fn().mockImplementation((tokenId: string, userId: string) => {
       if (tokenId === 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA')
-        return 10000_0000000;
+        return 10000_0000000n;
       else if (tokenId === 'CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK')
-        return 500_0000000;
+        return 500_0000000n;
       else if (tokenId === 'CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV')
-        return 10000_000000;
+        return 10000_000000n;
     });
     let requests = await buildFillRequests(auctionBid, auctionData, 100, sorobanHelper);
     let expectRequests: Request[] = [

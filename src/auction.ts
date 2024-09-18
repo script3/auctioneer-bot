@@ -36,7 +36,6 @@ export async function calculateBlockFillAndPercent(
   // Sum the effective collateral and lot value
   let { effectiveCollateral, effectiveLiabilities, lotValue, bidValue } =
     await calculateAuctionValue(auctionType, auctionData, sorobanHelper, db);
-
   let fillBlockDelay = 0;
   let fillPercent = 100;
   logger.info(
@@ -50,27 +49,25 @@ export async function calculateBlockFillAndPercent(
     fillBlockDelay = 200 + (bidValue - maxBidAmount) / (bidValue / 200);
   }
   fillBlockDelay = Math.min(Math.max(Math.ceil(fillBlockDelay), 0), 400);
-
   // Ensure the filler can fully fill interest auctions
   if (auctionType === AuctionType.Interest) {
-    const cometLpTokenBalance = await sorobanHelper.simBalance(
-      APP_CONFIG.backstopTokenAddress,
-      filler.keypair.publicKey()
+    const cometLpTokenBalance = FixedMath.toFloat(
+      await sorobanHelper.simBalance(APP_CONFIG.backstopTokenAddress, filler.keypair.publicKey()),
+      7
     );
     const cometLpBid =
       fillBlockDelay <= 200
-        ? Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!)
-        : Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!) *
+        ? FixedMath.toFloat(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!, 7)
+        : FixedMath.toFloat(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!, 7) *
           (1 - (fillBlockDelay - 200) / 200);
-    if (cometLpTokenBalance < cometLpBid) {
-      const additionalCometLp = cometLpBid - FixedMath.toFloat(cometLpTokenBalance, 7);
-      const bidStepSize = Number(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)) / 200;
 
+    if (cometLpTokenBalance < cometLpBid) {
+      const additionalCometLp = cometLpBid - cometLpTokenBalance;
+      const bidStepSize =
+        FixedMath.toFloat(auctionData.bid.get(APP_CONFIG.backstopTokenAddress)!, 7) / 200;
       if (additionalCometLp >= 0 && bidStepSize > 0) {
         fillBlockDelay += Math.ceil(additionalCometLp / bidStepSize);
-        if (filler.forceFill) {
-          fillBlockDelay = Math.min(fillBlockDelay, 375);
-        }
+        fillBlockDelay = Math.min(fillBlockDelay, 400);
       }
     }
   }
@@ -99,6 +96,11 @@ export async function calculateBlockFillAndPercent(
     }
   }
 
+  if (auctionType === AuctionType.Liquidation && filler.forceFill) {
+    fillBlockDelay = 198 < fillBlockDelay ? 198 : fillBlockDelay;
+  } else if (auctionType === AuctionType.Interest && filler.forceFill) {
+    fillBlockDelay = 350 < fillBlockDelay ? 350 : fillBlockDelay;
+  }
   return { fillBlock: auctionData.block + fillBlockDelay, fillPercent };
 }
 
@@ -227,20 +229,18 @@ export async function buildFillRequests(
             ? fillerBalance - FixedMath.toFixed(100, 7)
             : 0n;
       }
-      if (reserve !== undefined && fillerBalance > 0) {
-        const liabilityLeft = Math.max(
-          0,
-          FixedMath.toFloat(amount, reserve.config.decimals) -
-            FixedMath.toFloat(fillerBalance, reserve.config.decimals)
-        );
+      if (reserve !== undefined) {
+        const liabilityLeft = amount - fillerBalance > 0 ? amount - fillerBalance : 0n;
         const effectiveLiabilityIncrease =
-          reserve.toEffectiveAssetFromDTokenFloat(BigInt(liabilityLeft)) * oraclePrice;
+          reserve.toEffectiveAssetFromDTokenFloat(liabilityLeft) * oraclePrice;
         fillerPositionEstimates.totalEffectiveLiabilities += effectiveLiabilityIncrease;
-        fillRequests.push({
-          request_type: RequestType.Repay,
-          address: assetId,
-          amount: BigInt(fillerBalance),
-        });
+        if (fillerBalance > 0) {
+          fillRequests.push({
+            request_type: RequestType.Repay,
+            address: assetId,
+            amount: BigInt(fillerBalance),
+          });
+        }
       }
     }
 

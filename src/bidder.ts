@@ -74,7 +74,6 @@ async function main() {
             db.setAuctionEntry(auction);
           }
 
-          // TODO: Add other fill conditions like force fill
           if (auction.fill_block <= nextLedger) {
             let submission: AuctionBid = {
               type: BidderSubmissionType.BID,
