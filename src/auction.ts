@@ -97,9 +97,9 @@ export async function calculateBlockFillAndPercent(
   }
 
   if (auctionType === AuctionType.Liquidation && filler.forceFill) {
-    fillBlockDelay = 198 < fillBlockDelay ? 198 : fillBlockDelay;
+    fillBlockDelay = Math.min(fillBlockDelay, 198);
   } else if (auctionType === AuctionType.Interest && filler.forceFill) {
-    fillBlockDelay = 350 < fillBlockDelay ? 350 : fillBlockDelay;
+    fillBlockDelay = Math.min(fillBlockDelay, 350);
   }
   return { fillBlock: auctionData.block + fillBlockDelay, fillPercent };
 }
