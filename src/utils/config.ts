@@ -38,9 +38,8 @@ let isValid = validateAppConfig(APP_CONFIG);
 if (!isValid) {
   throw new Error('Invalid config file');
 }
-export { APP_CONFIG };
 
-function validateAppConfig(config: any): boolean {
+export function validateAppConfig(config: any): boolean {
   if (typeof config !== 'object' || config === null) {
     return false;
   }
@@ -67,7 +66,7 @@ function validateAppConfig(config: any): boolean {
   return config.fillers.every(validateFiller) && config.priceSources.every(validatePriceSource);
 }
 
-function validateFiller(filler: any): boolean {
+export function validateFiller(filler: any): boolean {
   if (typeof filler !== 'object' || filler === null) {
     return false;
   }
@@ -89,7 +88,7 @@ function validateFiller(filler: any): boolean {
   return false;
 }
 
-function validatePriceSource(priceSource: any): boolean {
+export function validatePriceSource(priceSource: any): boolean {
   if (typeof priceSource !== 'object' || priceSource === null) {
     return false;
   }
