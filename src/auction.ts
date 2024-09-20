@@ -216,6 +216,8 @@ export async function buildFillRequests(
     for (const [assetId, amount] of auctionData.bid) {
       const oraclePrice = poolOracle.getPriceFloat(assetId);
       // Skip assets without an oracle price
+      // TODO: determine what to do with assets without an oracle price
+      // (e.g. just repay debt if wallet balance is sufficient or check if asset is in price db)
       if (oraclePrice === undefined) {
         continue;
       }

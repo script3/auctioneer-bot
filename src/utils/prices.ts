@@ -51,7 +51,7 @@ export async function setPrices(db: AuctioneerDatabase): Promise<void> {
  * @param symbols - The tickers to fetch prices for (productId for Coinbase)
  * @returns An array of prices for the tickers
  */
-async function coinbasePrices(symbols: string[]): Promise<ExchangePrice[]> {
+export async function coinbasePrices(symbols: string[]): Promise<ExchangePrice[]> {
   try {
     if (symbols.length === 0) {
       return [];
@@ -97,7 +97,7 @@ async function coinbasePrices(symbols: string[]): Promise<ExchangePrice[]> {
  * @param symbols - The tickers to fetch prices for
  * @returns An array of prices for the tickers
  */
-async function binancePrices(symbols: string[]): Promise<ExchangePrice[]> {
+export async function binancePrices(symbols: string[]): Promise<ExchangePrice[]> {
   try {
     if (symbols.length === 0) {
       return [];
