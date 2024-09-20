@@ -228,7 +228,7 @@ export class SorobanHelper {
       logger.info(
         'Transaction successfully submitted: ' +
           stringify(get_tx_response) +
-          `n Tx Hash:
+          `Tx Hash:
           ${txResponse.hash}`
       );
       return { ...get_tx_response, txHash: txResponse.hash };

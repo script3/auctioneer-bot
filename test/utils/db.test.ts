@@ -232,7 +232,7 @@ describe('AuctioneerDatabase', () => {
       lot_total: 50,
       est_profit: 50,
       fill_block: 200,
-      timestamp: 'timestamp',
+      timestamp: 12345,
     };
     db.setFilledAuctionEntry(entry);
     // Add a method to get filled auction entries if not present

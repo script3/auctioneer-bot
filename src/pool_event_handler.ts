@@ -142,6 +142,7 @@ export class PoolEventHandler {
             updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
           }
         }
+        break;
       }
       default: {
         logger.error(`Unhandled event type: ${poolEvent.event.eventType}`);
