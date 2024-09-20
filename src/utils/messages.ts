@@ -31,6 +31,9 @@ export function readEvent(message: any): AppEvent | undefined {
         logger.error(`Invalid event read, message: ${message.data}`);
         return undefined;
       }
+    } else {
+      logger.error(`Invalid message format, message: ${message}`);
+      return undefined;
     }
   } catch (error) {
     logger.error(`Error reading event. Message: ${message} Error: ${error}`);
