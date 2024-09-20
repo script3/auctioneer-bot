@@ -1,4 +1,4 @@
-import { Request, RequestType } from '@blend-capital/blend-sdk';
+import { BackstopToken, Request, RequestType } from '@blend-capital/blend-sdk';
 import { Keypair } from '@stellar/stellar-sdk';
 import {
   buildFillRequests,
@@ -331,11 +331,93 @@ describe('calculateAuctionValue', () => {
     expect(result.effectiveCollateral).toBeCloseTo(0);
     expect(result.effectiveLiabilities).toBeCloseTo(2061.66);
   });
+  it('test valuing lp token when simLPTokenToUSDC is not defined', async () => {
+    sorobanHelper.simLPTokenToUSDC = jest.fn().mockResolvedValue(undefined);
+    sorobanHelper.loadBackstopToken = jest
+      .fn()
+      .mockResolvedValue(new BackstopToken('id', 100n, 100n, 100n, 100, 100, 1));
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM', 12345678_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1234_0000000n],
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 5678_0000000n],
+      ]),
+      block: 123,
+    };
+
+    let result = await calculateAuctionValue(AuctionType.BadDebt, auctionData, sorobanHelper, db);
+    expect(result.bidValue).toBeCloseTo(1808.6);
+    expect(result.lotValue).toBeCloseTo(12345678);
+    expect(result.effectiveCollateral).toBeCloseTo(0);
+    expect(result.effectiveLiabilities).toBeCloseTo(2061.66);
+
+    auctionData = {
+      bid: new Map<string, bigint>([
+        ['CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM', 12345678_0000000n],
+      ]),
+      lot: new Map<string, bigint>([
+        ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75', 1234_0000000n],
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 5678_0000000n],
+      ]),
+      block: 123,
+    };
+
+    result = await calculateAuctionValue(AuctionType.Interest, auctionData, sorobanHelper, db);
+    expect(result.bidValue).toBeCloseTo(12345678);
+    expect(result.lotValue).toBeCloseTo(1795.72);
+    expect(result.effectiveCollateral).toBeCloseTo(0);
+    expect(result.effectiveLiabilities).toBeCloseTo(0);
+  });
 });
 
 describe('buildFillRequests', () => {
   let sorobanHelper = new SorobanHelper();
-
+  it('test user liquidation auction requests', async () => {
+    const filler = Keypair.random();
+    const user = Keypair.random();
+    const auctionBid: AuctionBid = {
+      type: BidderSubmissionType.BID,
+      filler: {
+        name: '',
+        keypair: filler,
+        minProfitPct: 0.2,
+        minHealthFactor: 1.2,
+        forceFill: false,
+        supportedBid: [],
+        supportedLot: ['CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75'],
+      },
+      auctionEntry: {
+        user_id: user.publicKey(),
+        auction_type: AuctionType.Interest,
+        filler: filler.publicKey(),
+        start_block: 0,
+        fill_block: 0,
+        updated: 0,
+      },
+    };
+    let auctionData = {
+      lot: new Map<string, bigint>([
+        ['CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV', 10000_0000000n],
+        ['CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA', 80000_0000000n],
+      ]),
+      bid: new Map<string, bigint>([
+        ['CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK', 456_0000000n],
+      ]),
+      block: 123,
+    };
+    let requests = await buildFillRequests(auctionBid, auctionData, 100, sorobanHelper);
+    let expectRequests: Request[] = [
+      {
+        request_type: RequestType.FillInterestAuction,
+        address: user.publicKey(),
+        amount: 100n,
+      },
+    ];
+    expect(requests.length).toEqual(1);
+    expect(requests).toEqual(expectRequests);
+  });
   it('test interest auction requests', async () => {
     const filler = Keypair.random();
     const user = Keypair.random();
@@ -641,6 +723,8 @@ describe('buildFillRequests', () => {
     expect(requests.length).toEqual(3);
     expect(requests).toEqual(expectRequests);
   });
+
+  it('test requests does not repay or withdraw without oracle price', async () => {});
 });
 
 describe('scaleAuction', () => {

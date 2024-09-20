@@ -9,7 +9,9 @@ import {
   PriceEntry,
 } from '../../src/utils/db.js';
 import { parse, stringify } from '../../src/utils/json.js';
+import { logger } from '../../src/utils/logger.js';
 import { inMemoryAuctioneerDb } from '../helpers/mocks.js';
+
 describe('AuctioneerDatabase', () => {
   let db: AuctioneerDatabase;
 
@@ -40,6 +42,23 @@ describe('AuctioneerDatabase', () => {
   test('getStatusEntry should return undefined for non-existing status entry', () => {
     const result = db.getStatusEntry('non-existing');
     expect(result).toBeUndefined();
+  });
+
+  test('setStatus should log an error if the query fails', () => {
+    const error = new Error('Database error');
+    const entry: StatusEntry = {
+      name: 'status1',
+      latest_ledger: 123,
+    };
+    // Mock the database to throw an error
+    db.db.prepare = jest.fn().mockImplementation(() => {
+      throw error;
+    });
+    // Mock the logger
+    logger.error = jest.fn();
+
+    expect(() => db.setStatusEntry(entry)).toThrow(error);
+    expect(logger.error).toHaveBeenCalledWith(`Error setting status entry: ${error}`);
   });
 
   // Price functions tests
@@ -195,6 +214,26 @@ describe('AuctioneerDatabase', () => {
     expect(result).toContainEqual(entry);
   });
 
+  // Auction functions tests
+  test('getAuctionEntry should return the correct auction entry', () => {
+    const entry: AuctionEntry = {
+      user_id: 'user1',
+      auction_type: AuctionType.Liquidation,
+      filler: 'filler1',
+      start_block: 100,
+      fill_block: 200,
+      updated: Date.now(),
+    };
+    db.setAuctionEntry(entry);
+    const result = db.getAuctionEntry(entry.user_id, entry.auction_type);
+    expect(result).toEqual(entry);
+  });
+
+  test('getAuctionEntry should return undefined for non-existing auction entry', () => {
+    const result = db.getAuctionEntry('non-existing', AuctionType.Liquidation);
+    expect(result).toBeUndefined();
+  });
+
   test('deleteAuctionEntry should remove an existing auction entry', () => {
     const entry1: AuctionEntry = {
       user_id: 'user1',
@@ -252,5 +291,51 @@ describe('AuctioneerDatabase', () => {
       fill_block: result.fill_block,
       timestamp: result.timestamp,
     }).toEqual(entry);
+  });
+
+  test('getAllAuctionEntries should return all auction entries', () => {
+    const entries: AuctionEntry[] = [
+      {
+        user_id: 'user1',
+        auction_type: AuctionType.Liquidation,
+        filler: 'filler1',
+        start_block: 100,
+        fill_block: 200,
+        updated: Date.now(),
+      },
+      {
+        user_id: 'user2',
+        auction_type: AuctionType.Liquidation,
+        filler: 'filler2',
+        start_block: 101,
+        fill_block: 201,
+        updated: Date.now(),
+      },
+    ];
+
+    // Mock the database response
+    db.db.prepare = jest.fn().mockReturnValue({
+      all: jest.fn().mockReturnValue(entries),
+    });
+
+    const result = db.getAllAuctionEntries();
+    expect(result).toEqual(entries);
+  });
+
+  test('getAllAuctionEntries should log an error and throw if the query fails', () => {
+    const error = new Error('Database error');
+
+    // Mock the database to throw an error
+    db.db.prepare = jest.fn().mockReturnValue({
+      all: jest.fn().mockImplementation(() => {
+        throw error;
+      }),
+    });
+
+    // Mock the logger
+    logger.error = jest.fn();
+
+    expect(() => db.getAllAuctionEntries()).toThrow(error);
+    expect(logger.error).toHaveBeenCalledWith(`Error getting all auction entries: ${error}`);
   });
 });

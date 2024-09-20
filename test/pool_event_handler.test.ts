@@ -13,14 +13,18 @@ import { APP_CONFIG, AppConfig } from '../src/utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from '../src/utils/db.js';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import { inMemoryAuctioneerDb, mockedPool } from './helpers/mocks.js';
+import { logger } from '../src/utils/logger.js';
+import { deadletterEvent } from '../src/utils/messages.js';
 
 jest.mock('../src/user.js');
 jest.mock('../src/utils/soroban_helper.js');
 jest.mock('../src/utils/slack_notifier.js');
+jest.mock('../src/utils/messages');
 jest.mock('../src/utils/logger.js', () => ({
   logger: {
     error: jest.fn(),
     info: jest.fn(),
+    warn: jest.fn(),
   },
 }));
 jest.mock('../src/utils/config.js', () => {
@@ -56,7 +60,7 @@ describe('poolEventHandler', () => {
   let db: AuctioneerDatabase;
   let mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
   let mockedUpdateUser = updateUser as jest.MockedFunction<typeof updateUser>;
-
+  let poolEventHandler: PoolEventHandler;
   let pool_user = Keypair.random().publicKey();
   let estimate = {
     totalEffectiveCollateral: 2000,
@@ -83,6 +87,136 @@ describe('poolEventHandler', () => {
     jest.clearAllMocks();
     db = inMemoryAuctioneerDb();
     mockedSorobanHelper.loadPool.mockResolvedValue(mockedPool);
+    poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
+  });
+
+  it('should process event successfully without retries', async () => {
+    const poolEvent: PoolEventEvent = {
+      timestamp: 999,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: 'mockedPoolId',
+        contractType: BlendContractType.Pool,
+        ledger: 12350,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.NewAuction,
+        auctionType: AuctionType.Interest,
+        auctionData: {
+          block: 12345,
+          bid: new Map<string, bigint>(),
+          lot: new Map<string, bigint>(),
+        },
+      },
+    };
+
+    jest.spyOn(poolEventHandler, 'handlePoolEvent').mockResolvedValue();
+
+    await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
+
+    expect(poolEventHandler.handlePoolEvent).toHaveBeenCalledWith(poolEvent);
+    expect(logger.info).toHaveBeenCalledWith(`Successfully processed event. ${poolEvent.event.id}`);
+  });
+
+  it('should retry processing event and succeed', async () => {
+    const poolEvent: PoolEventEvent = {
+      timestamp: 999,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: 'mockedPoolId',
+        contractType: BlendContractType.Pool,
+        ledger: 12350,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.NewAuction,
+        auctionType: AuctionType.Interest,
+        auctionData: {
+          block: 12345,
+          bid: new Map<string, bigint>(),
+          lot: new Map<string, bigint>(),
+        },
+      },
+    };
+
+    const handlePoolEventMock = jest
+      .spyOn(poolEventHandler, 'handlePoolEvent')
+      .mockRejectedValueOnce(new Error('Temporary error'))
+      .mockResolvedValueOnce();
+
+    await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
+
+    expect(handlePoolEventMock).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      `Error processing event. ${poolEvent.event.id} Error: Error: Temporary error`
+    );
+    expect(logger.info).toHaveBeenCalledWith(`Successfully processed event. ${poolEvent.event.id}`);
+  });
+
+  it('should send event to dead letter queue after max retries', async () => {
+    const poolEvent: PoolEventEvent = {
+      timestamp: 999,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: 'mockedPoolId',
+        contractType: BlendContractType.Pool,
+        ledger: 12350,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.NewAuction,
+        auctionType: AuctionType.Interest,
+        auctionData: {
+          block: 12345,
+          bid: new Map<string, bigint>(),
+          lot: new Map<string, bigint>(),
+        },
+      },
+    };
+
+    jest.spyOn(poolEventHandler, 'handlePoolEvent').mockRejectedValue(new Error('Permanent error'));
+
+    await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
+
+    expect(poolEventHandler.handlePoolEvent).toHaveBeenCalledTimes(2);
+    expect(deadletterEvent).toHaveBeenCalledWith(poolEvent);
+  });
+
+  it('should log error if deadLetterEvent fails after max retries', async () => {
+    const poolEvent: PoolEventEvent = {
+      timestamp: 999,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: 'mockedPoolId',
+        contractType: BlendContractType.Pool,
+        ledger: 12350,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.NewAuction,
+        auctionType: AuctionType.Interest,
+        auctionData: {
+          block: 12345,
+          bid: new Map<string, bigint>(),
+          lot: new Map<string, bigint>(),
+        },
+      },
+    };
+
+    jest.spyOn(poolEventHandler, 'handlePoolEvent').mockRejectedValue(new Error('Permanent error'));
+    (deadletterEvent as jest.Mock).mockImplementation(() => {
+      throw new Error('Mocked error');
+    });
+
+    await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
+
+    expect(poolEventHandler.handlePoolEvent).toHaveBeenCalledTimes(2);
+    expect(deadletterEvent).toHaveBeenCalledWith(poolEvent);
+    expect(logger.error).toHaveBeenNthCalledWith(
+      1,
+      `Error sending event to dead letter queue. Error: Error: Mocked error`
+    );
   });
 
   it('updates user data for supply collateral event', async () => {
@@ -105,7 +239,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     expect(mockedUpdateUser).toHaveBeenCalledWith(db, mockedPool, user, estimate, ledger);
@@ -131,7 +264,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     expect(mockedUpdateUser).toHaveBeenCalledWith(db, mockedPool, user, estimate, ledger);
@@ -157,7 +289,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     expect(mockedUpdateUser).toHaveBeenCalledWith(db, mockedPool, user, estimate, ledger);
@@ -183,7 +314,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     expect(mockedUpdateUser).toHaveBeenCalledWith(db, mockedPool, user, estimate, ledger);
@@ -212,7 +342,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     let auctionEntry = db.getAuctionEntry(user, AuctionType.Liquidation);
@@ -249,7 +378,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     let auctionEntry = db.getAuctionEntry(APP_CONFIG.backstopAddress, AuctionType.Interest);
@@ -286,7 +414,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     let auctionEntry = db.getAuctionEntry(APP_CONFIG.backstopAddress, AuctionType.BadDebt);
@@ -325,7 +452,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     let auctionEntries = db.getAllAuctionEntries();
@@ -373,7 +499,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     let auctionEntries = db.getAllAuctionEntries();
@@ -424,7 +549,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEventPartial);
 
     let partialEntries = db.getAllAuctionEntries();
@@ -499,7 +623,6 @@ describe('poolEventHandler', () => {
       },
     };
 
-    let poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
     await poolEventHandler.handlePoolEvent(poolEventFull);
 
     let entries = db.getAllAuctionEntries();
@@ -507,5 +630,29 @@ describe('poolEventHandler', () => {
     let deletedAuction = db.getAuctionEntry(APP_CONFIG.backstopAddress, AuctionType.Interest);
     expect(deletedAuction).toBeUndefined();
     expect(mockedUpdateUser).toHaveBeenCalledTimes(0);
+  });
+
+  it('should log an error for unhandled event types', async () => {
+    let poolEvent: PoolEventEvent = {
+      timestamp: 999,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: mockedPool.id,
+        contractType: BlendContractType.Pool,
+        ledger: 12350,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: 'UNHANDLED_EVENT_TYPE' as any, // This is an unhandled event type
+        user: APP_CONFIG.backstopAddress,
+        auctionType: AuctionType.Interest,
+        fillAmount: BigInt(100),
+        from: Keypair.random().publicKey(),
+      },
+    };
+
+    await poolEventHandler.handlePoolEvent(poolEvent);
+
+    expect(logger.error).toHaveBeenCalledWith('Unhandled event type: UNHANDLED_EVENT_TYPE');
   });
 });
