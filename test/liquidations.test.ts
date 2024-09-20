@@ -1,5 +1,11 @@
 import { PoolUser, Positions, PositionsEstimate } from '@blend-capital/blend-sdk';
-import { calculateLiquidationPercent, isLiquidatable, scanUsers } from '../src/liquidations.js';
+import {
+  isLiquidatable,
+  isBadDebt,
+  calculateLiquidationPercent,
+  scanUsers,
+  checkUsersForLiquidationsAndBadDebt,
+} from '../src/liquidations';
 import { AuctioneerDatabase } from '../src/utils/db.js';
 import { PoolUserEst, SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
@@ -8,6 +14,8 @@ import {
   mockPoolUser,
   mockPoolUserEstimate,
 } from './helpers/mocks.js';
+import { UserLiquidation, WorkSubmission, WorkSubmissionType } from '../src/work_submitter.js';
+import { APP_CONFIG } from '../src/utils/config.js';
 
 jest.mock('../src/utils/soroban_helper.js');
 jest.mock('../src/utils/logger.js', () => ({
@@ -21,6 +29,11 @@ jest.mock('../src/utils/config.js', () => {
     APP_CONFIG: {
       backstopAddress: 'backstopAddress',
     },
+  };
+});
+jest.mock('../src/user.js', () => {
+  return {
+    updateUser: jest.fn(),
   };
 });
 
@@ -45,6 +58,39 @@ describe('isLiquidatable', () => {
     userEstimate.totalEffectiveLiabilities = 1010;
     const result = isLiquidatable(userEstimate);
     expect(result).toBe(false);
+  });
+});
+
+describe('isBadDebt', () => {
+  let userEstimate: PositionsEstimate;
+
+  beforeEach(() => {
+    userEstimate = mockPoolUserEstimate;
+    userEstimate.totalEffectiveCollateral = 25000;
+    userEstimate.totalEffectiveLiabilities = 1000;
+  });
+  it('should return true when totalEffectiveCollateral is 0 and totalEffectiveLiabilities is greater than 0', () => {
+    userEstimate.totalEffectiveCollateral = 0;
+    userEstimate.totalEffectiveLiabilities = 100;
+    expect(isBadDebt(userEstimate)).toBe(true);
+  });
+
+  it('should return false when totalEffectiveCollateral is greater than 0 and totalEffectiveLiabilities is greater than 0', () => {
+    userEstimate.totalEffectiveCollateral = 100;
+    userEstimate.totalEffectiveLiabilities = 100;
+    expect(isBadDebt(userEstimate)).toBe(false);
+  });
+
+  it('should return false when totalEffectiveCollateral is 0 and totalEffectiveLiabilities is 0', () => {
+    userEstimate.totalEffectiveCollateral = 0;
+    userEstimate.totalEffectiveLiabilities = 0;
+    expect(isBadDebt(userEstimate)).toBe(false);
+  });
+
+  it('should return false when totalEffectiveCollateral is greater than 0 and totalEffectiveLiabilities is 0', () => {
+    userEstimate.totalEffectiveCollateral = 100;
+    userEstimate.totalEffectiveLiabilities = 0;
+    expect(isBadDebt(userEstimate)).toBe(false);
   });
 });
 
@@ -175,5 +221,100 @@ describe('scanUsers', () => {
 
     let liquidations = await scanUsers(db, mockedSorobanHelper);
     expect(liquidations.length).toBe(0);
+  });
+});
+
+describe('checkUsersForLiquidationsAndBadDebt', () => {
+  let db: AuctioneerDatabase;
+  let mockedSorobanHelper: jest.Mocked<SorobanHelper>;
+  let mockBackstopPositions: PoolUser;
+  let mockBackstopPositionsEstimate: PositionsEstimate;
+  let mockUser: PoolUser;
+  let mockUserEstimate: PositionsEstimate;
+
+  beforeEach(() => {
+    db = inMemoryAuctioneerDb();
+    mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
+    mockedSorobanHelper.loadPool.mockResolvedValue(mockedPool);
+    mockBackstopPositions = new PoolUser(
+      'backstopAddress',
+      new Positions(new Map(), new Map(), new Map()),
+      new Map()
+    );
+    mockBackstopPositionsEstimate = new PositionsEstimate(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    mockUser = mockPoolUser;
+    mockUserEstimate = mockPoolUserEstimate;
+  });
+
+  it('should return an empty array when user_ids is empty', async () => {
+    const result = await checkUsersForLiquidationsAndBadDebt(db, mockedSorobanHelper, []);
+    expect(result).toEqual([]);
+  });
+
+  it('should handle backstop address user correctly', async () => {
+    const user_ids = [APP_CONFIG.backstopAddress];
+    (mockedSorobanHelper.loadPool as jest.Mock).mockResolvedValue(mockedPool);
+    mockBackstopPositionsEstimate.totalEffectiveLiabilities = 1000;
+    mockBackstopPositionsEstimate.totalEffectiveCollateral = 0;
+    (mockedSorobanHelper.loadUserPositionEstimate as jest.Mock).mockResolvedValue({
+      estimate: mockBackstopPositionsEstimate,
+      user: mockBackstopPositions,
+    });
+    (mockedSorobanHelper.loadAuction as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await checkUsersForLiquidationsAndBadDebt(db, mockedSorobanHelper, user_ids);
+
+    expect(result).toEqual([{ type: WorkSubmissionType.BadDebtAuction }]);
+  });
+
+  it('should handle users with liquidations correctly', async () => {
+    const user_ids = ['user1'];
+    (mockedSorobanHelper.loadPool as jest.Mock).mockResolvedValue(mockedPool);
+    mockUserEstimate.totalEffectiveCollateral = 1000;
+    mockUserEstimate.totalEffectiveLiabilities = 1100;
+    (mockedSorobanHelper.loadUserPositionEstimate as jest.Mock).mockResolvedValue({
+      estimate: mockUserEstimate,
+      user: mockUser,
+    });
+    (mockedSorobanHelper.loadAuction as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await checkUsersForLiquidationsAndBadDebt(db, mockedSorobanHelper, user_ids);
+
+    expect(result.length).toBe(1);
+    expect(result[0].type).toBe(WorkSubmissionType.LiquidateUser);
+
+    // Type Guard Function
+    function isUserLiquidation(workSubmission: WorkSubmission): workSubmission is UserLiquidation {
+      return 'user' in workSubmission && 'liquidationPercent' in workSubmission;
+    }
+    // Test Case
+    const workSubmission = result[0] as WorkSubmission;
+
+    if (isUserLiquidation(workSubmission)) {
+      expect(workSubmission.user).toBe('user1');
+      expect(Number(workSubmission.liquidationPercent)).toBe(62);
+    } else {
+      throw new Error('Expected workSubmission to be of type LiquidateUser');
+    }
+  });
+
+  it('should handle users with bad debt correctly', async () => {
+    const user_ids = ['user1'];
+    (mockedSorobanHelper.loadPool as jest.Mock).mockResolvedValue(mockedPool);
+    mockUserEstimate.totalEffectiveCollateral = 0;
+    mockUserEstimate.totalEffectiveLiabilities = 1100;
+    (mockedSorobanHelper.loadUserPositionEstimate as jest.Mock).mockResolvedValue({
+      estimate: mockUserEstimate,
+      user: mockUser,
+    });
+    (mockedSorobanHelper.loadAuction as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await checkUsersForLiquidationsAndBadDebt(db, mockedSorobanHelper, user_ids);
+
+    expect(result.length).toBe(1);
+    expect(result[0].type).toBe(WorkSubmissionType.BadDebtTransfer);
+
+    // Type Guard Function
+    expect(result).toEqual([{ type: WorkSubmissionType.BadDebtTransfer, user: 'user1' }]);
   });
 });

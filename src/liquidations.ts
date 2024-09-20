@@ -14,6 +14,7 @@ import { APP_CONFIG } from './utils/config.js';
 export function isLiquidatable(user: PositionsEstimate): boolean {
   if (
     user.totalEffectiveLiabilities > 0 &&
+    user.totalEffectiveCollateral > 0 &&
     user.totalEffectiveCollateral / user.totalEffectiveLiabilities < 0.99
   ) {
     return true;
@@ -87,7 +88,7 @@ export async function checkUsersForLiquidationsAndBadDebt(
       const { estimate: backstopPostionsEstimate, user: _ } =
         await sorobanHelper.loadUserPositionEstimate(user);
       if (
-        isLiquidatable(backstopPostionsEstimate) &&
+        isBadDebt(backstopPostionsEstimate) &&
         (await sorobanHelper.loadAuction(user, AuctionType.BadDebt)) === undefined
       ) {
         submissions.push({
@@ -105,8 +106,7 @@ export async function checkUsersForLiquidationsAndBadDebt(
           user: user,
           liquidationPercent: liquidationPercent,
         });
-      }
-      if (isBadDebt(poolUserEstimate)) {
+      } else if (isBadDebt(poolUserEstimate)) {
         submissions.push({
           type: WorkSubmissionType.BadDebtTransfer,
           user: user,
