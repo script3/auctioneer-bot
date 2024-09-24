@@ -1,4 +1,5 @@
 import { AuctioneerDatabase } from '../../src/utils/db.js';
+import { logger } from '../../src/utils/logger.js';
 import { binancePrices, coinbasePrices, setPrices } from '../../src/utils/prices.js';
 import { inMemoryAuctioneerDb } from '../helpers/mocks.js';
 
@@ -141,7 +142,19 @@ describe('coinbasePrices', () => {
     const result = await coinbasePrices(['BTC-USD']);
     expect(result).toEqual([]);
   });
+  it('should return an empty array for ok equals false and log error', async () => {
+    const mockResponse = { unexpected: 'data' };
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      json: async () => mockResponse,
+      status: 123,
+      statusText: 'mock error',
+    });
 
+    const result = await coinbasePrices(['BTCUSDT']);
+    expect(result).toEqual([]);
+    expect(logger.error).toHaveBeenCalledWith('Http error fetching Coinbase price: 123 mock error');
+  });
   it('should return an empty array if fetch fails', async () => {
     (fetch as jest.Mock).mockRejectedValue(new Error('Fetch error'));
 
@@ -190,6 +203,20 @@ describe('binancePrices', () => {
 
     const result = await binancePrices(['BTCUSDT']);
     expect(result).toEqual([]);
+  });
+
+  it('should return an empty array for ok equals false and log error', async () => {
+    const mockResponse = { unexpected: 'data' };
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      json: async () => mockResponse,
+      status: 123,
+      statusText: 'mock error',
+    });
+
+    const result = await binancePrices(['BTCUSDT']);
+    expect(result).toEqual([]);
+    expect(logger.error).toHaveBeenCalledWith('Http error fetching Binance price: 123 mock error');
   });
 
   it('should return an empty array if fetch fails', async () => {
