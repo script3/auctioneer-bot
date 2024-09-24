@@ -38,7 +38,7 @@ let isValid = validateAppConfig(APP_CONFIG);
 if (!isValid) {
   throw new Error('Invalid config file');
 }
-
+export { APP_CONFIG };
 export function validateAppConfig(config: any): boolean {
   if (typeof config !== 'object' || config === null) {
     return false;
