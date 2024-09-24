@@ -103,12 +103,8 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         this.db
       );
 
-      if (currLedger >= fillCalculation.fillBlock) {
-        let scaledAuction = scaleAuction(
-          auctionData,
-          fillCalculation.fillBlock,
-          fillCalculation.fillPercent
-        );
+      if (currLedger + 1 >= fillCalculation.fillBlock) {
+        let scaledAuction = scaleAuction(auctionData, currLedger, fillCalculation.fillPercent);
         const requests = await buildFillRequests(
           auctionBid,
           scaledAuction,
@@ -154,7 +150,7 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           lot_total: filledAuctionValue.lotValue,
           est_profit: filledAuctionValue.lotValue - filledAuctionValue.bidValue,
           fill_block: result.ledger,
-          timestamp: result.latestLedgerCloseTime,
+          timestamp: result.latestLedger,
         });
         return true;
       }
