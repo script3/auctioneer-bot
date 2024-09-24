@@ -232,7 +232,10 @@ export class SorobanHelper {
       }
       logger.info(
         'Transaction successfully submitted: ' +
-          stringify(get_tx_response) +
+          `Ledger: ${get_tx_response.ledger} ` +
+          `Latest Ledger Close Time: ${get_tx_response.latestLedgerCloseTime} ` +
+          `Transaction Result XDR: ${get_tx_response.resultXdr.toXDR('base64')} ` +
+          `Tx Envelope XDR: ${get_tx_response.envelopeXdr.toXDR('base64')}` +
           `Tx Hash:
           ${txResponse.hash}`
       );
