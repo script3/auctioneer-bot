@@ -263,7 +263,8 @@ export async function buildFillRequests(
           fillRequests.push({
             request_type: RequestType.WithdrawCollateral,
             address: assetId,
-            amount: BigInt(amount),
+            // Use I64 max value to withdraw all collateral
+            amount: BigInt('9223372036854775807'),
           });
         } else {
           fillerPositionEstimates.totalEffectiveCollateral += effectiveCollateralIncrease;
