@@ -222,6 +222,28 @@ describe('scanUsers', () => {
     let liquidations = await scanUsers(db, mockedSorobanHelper);
     expect(liquidations.length).toBe(0);
   });
+
+  it('Checks backstop for bad debt when no users exist', async () => {
+    mockBackstopPositionsEstimate.totalEffectiveLiabilities = 1000;
+    mockBackstopPositionsEstimate.totalEffectiveCollateral = 0;
+    mockedSorobanHelper.loadUserPositionEstimate.mockImplementation((address: string) => {
+      if (address === mockPoolUser.userId) {
+        return Promise.resolve({
+          estimate: mockPoolUserEstimate,
+          user: mockPoolUser,
+        } as PoolUserEst);
+      } else if (address === 'backstopAddress') {
+        return Promise.resolve({
+          estimate: mockBackstopPositionsEstimate,
+          user: mockBackstopPositions,
+        } as PoolUserEst);
+      }
+      return Promise.resolve({ estimate: {}, user: {} } as PoolUserEst);
+    });
+
+    let liquidations = await scanUsers(db, mockedSorobanHelper);
+    expect(liquidations.length).toBe(1);
+  });
 });
 
 describe('checkUsersForLiquidationsAndBadDebt', () => {
