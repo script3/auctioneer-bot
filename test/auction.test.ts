@@ -586,7 +586,7 @@ describe('buildFillRequests', () => {
       {
         request_type: RequestType.WithdrawCollateral,
         address: 'CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV',
-        amount: 10000_0000000n,
+        amount: 9223372036854775807n,
       },
     ];
     expect(requests.length).toEqual(4);
@@ -717,7 +717,7 @@ describe('buildFillRequests', () => {
       {
         request_type: RequestType.WithdrawCollateral,
         address: 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
-        amount: 10_0000000n,
+        amount: 9223372036854775807n,
       },
     ];
     expect(requests.length).toEqual(3);

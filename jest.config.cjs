@@ -10,4 +10,5 @@ module.exports = {
     '^(\\.\\.?\\/.+)\\.js$': '$1',
   },
   extensionsToTreatAsEsm: ['.ts'],
+  maxWorkers: 1,
 };

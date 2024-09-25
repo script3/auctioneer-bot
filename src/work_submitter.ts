@@ -72,9 +72,9 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
       return true;
     } catch (e: any) {
       const logMessage =
-        `Error creating user liquidaiton\n` +
+        `Error creating user liquidation\n` +
         `User: ${userLiquidation.user}\n` +
-        `Liquidation Percent: ${userLiquidation.liquidationPercent}\nError: ${e}\n`;
+        `Liquidation Percent: ${userLiquidation.liquidationPercent}\nError: ${stringify(e)}\n`;
       logger.error(logMessage);
       await sendSlackNotification(`<!channel>` + logMessage);
       return false;

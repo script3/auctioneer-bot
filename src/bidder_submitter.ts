@@ -103,12 +103,8 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         this.db
       );
 
-      if (currLedger >= fillCalculation.fillBlock) {
-        let scaledAuction = scaleAuction(
-          auctionData,
-          fillCalculation.fillBlock,
-          fillCalculation.fillPercent
-        );
+      if (currLedger + 1 >= fillCalculation.fillBlock) {
+        let scaledAuction = scaleAuction(auctionData, currLedger, fillCalculation.fillPercent);
         const requests = await buildFillRequests(
           auctionBid,
           scaledAuction,
