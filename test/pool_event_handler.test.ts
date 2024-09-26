@@ -14,8 +14,8 @@ import { AuctioneerDatabase, AuctionEntry, AuctionType } from '../src/utils/db.j
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import { inMemoryAuctioneerDb, mockedPool } from './helpers/mocks.js';
 import { logger } from '../src/utils/logger.js';
-import { deadletterEvent } from '../src/utils/messages.js';
-
+import { deadletterEvent, sendEvent } from '../src/utils/messages.js';
+import { ChildProcess } from 'child_process';
 jest.mock('../src/user.js');
 jest.mock('../src/utils/soroban_helper.js');
 jest.mock('../src/utils/slack_notifier.js');
@@ -55,11 +55,19 @@ jest.mock('../src/utils/config.js', () => {
     APP_CONFIG: config,
   };
 });
+jest.mock('child_process');
 
 describe('poolEventHandler', () => {
   let db: AuctioneerDatabase;
   let mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
   let mockedUpdateUser = updateUser as jest.MockedFunction<typeof updateUser>;
+  let mockedSendEvent = sendEvent as jest.MockedFunction<typeof sendEvent>;
+  const mockedWorkerProcess = {
+    send: jest.fn(),
+    on: jest.fn(),
+    // Add any other methods or properties you need to mock
+  } as unknown as ChildProcess;
+
   let poolEventHandler: PoolEventHandler;
   let pool_user = Keypair.random().publicKey();
   let estimate = {
@@ -87,7 +95,7 @@ describe('poolEventHandler', () => {
     jest.clearAllMocks();
     db = inMemoryAuctioneerDb();
     mockedSorobanHelper.loadPool.mockResolvedValue(mockedPool);
-    poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper);
+    poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper, mockedWorkerProcess);
   });
 
   it('should process event successfully without retries', async () => {
@@ -654,5 +662,70 @@ describe('poolEventHandler', () => {
     await poolEventHandler.handlePoolEvent(poolEvent);
 
     expect(logger.error).toHaveBeenCalledWith('Unhandled event type: UNHANDLED_EVENT_TYPE');
+  });
+
+  it('Sends check user event for backstop on bad debt fills', async () => {
+    let auction_to_be_filled: AuctionEntry = {
+      user_id: APP_CONFIG.backstopAddress,
+      auction_type: AuctionType.BadDebt,
+      filler: APP_CONFIG.fillers[0].keypair.publicKey(),
+      start_block: 600,
+      fill_block: 800,
+      updated: 12344,
+    };
+    db.setAuctionEntry(auction_to_be_filled);
+
+    let poolEvent: PoolEventEvent = {
+      timestamp: 777,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: mockedPool.id,
+        contractType: BlendContractType.Pool,
+        ledger: 12345,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.FillAuction,
+        user: APP_CONFIG.backstopAddress,
+        auctionType: AuctionType.BadDebt,
+        fillAmount: BigInt(100),
+        from: Keypair.random().publicKey(),
+      },
+    };
+
+    await poolEventHandler.handlePoolEvent(poolEvent);
+
+    expect(mockedSendEvent).toHaveBeenCalledWith(mockedWorkerProcess, {
+      type: EventType.CHECK_USER,
+      timestamp: Date.now(),
+      userId: APP_CONFIG.backstopAddress,
+    });
+  });
+
+  it('Sends check user event for backstop on bad debt transfers', async () => {
+    let poolEvent: PoolEventEvent = {
+      timestamp: 777,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: mockedPool.id,
+        contractType: BlendContractType.Pool,
+        ledger: 12345,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.BadDebt,
+        user: APP_CONFIG.backstopAddress,
+        dTokens: BigInt(1234),
+        assetId: 'USD',
+      },
+    };
+
+    await poolEventHandler.handlePoolEvent(poolEvent);
+
+    expect(mockedSendEvent).toHaveBeenCalledWith(mockedWorkerProcess, {
+      type: EventType.CHECK_USER,
+      timestamp: Date.now(),
+      userId: APP_CONFIG.backstopAddress,
+    });
   });
 });

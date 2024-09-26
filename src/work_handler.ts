@@ -121,6 +121,15 @@ export class WorkHandler {
             await this.sorobanHelper.loadUserPositionEstimate(user.user_id);
           updateUser(this.db, pool, poolUser, poolUserEstimate);
         }
+        break;
+      }
+      case EventType.CHECK_USER: {
+        const submissions = await checkUsersForLiquidationsAndBadDebt(this.db, this.sorobanHelper, [
+          appEvent.userId,
+        ]);
+        for (const submission of submissions) {
+          this.submissionQueue.addSubmission(submission, 2);
+        }
       }
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);
