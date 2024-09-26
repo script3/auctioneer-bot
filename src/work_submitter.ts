@@ -71,6 +71,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         (await sorobanHelper.loadAuction(userLiquidation.user, AuctionType.Liquidation)) !==
         undefined;
       if (auctionExists) {
+        logger.info(`User liquidation auction already exists for user: ${userLiquidation.user}`);
         return true;
       }
       await sorobanHelper.submitTransaction(op, APP_CONFIG.keypair);
@@ -118,6 +119,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         (await sorobanHelper.loadAuction(APP_CONFIG.backstopAddress, AuctionType.BadDebt)) !==
         undefined;
       if (auctionExists) {
+        logger.info(`Bad debt auction already exists`);
         return true;
       }
       await sorobanHelper.submitTransaction(op, APP_CONFIG.keypair);
