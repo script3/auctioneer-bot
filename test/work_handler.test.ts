@@ -24,15 +24,7 @@ jest.mock('../src/liquidations');
 jest.mock('../src/user');
 jest.mock('../src/utils/messages');
 jest.mock('../src/utils/logger');
-jest.mock('../src/utils/soroban_helper', () => {
-  return {
-    SorobanHelper: jest.fn().mockImplementation(() => ({
-      loadPoolOracle: jest.fn(),
-      loadPool: jest.fn(),
-      loadUserPositionEstimate: jest.fn(),
-    })),
-  };
-});
+jest.mock('../src/utils/soroban_helper');
 describe('WorkHandler', () => {
   let db: jest.Mocked<AuctioneerDatabase>;
   let submissionQueue: jest.Mocked<WorkSubmitter>;
@@ -41,6 +33,7 @@ describe('WorkHandler', () => {
   let workHandler: WorkHandler;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     db = {
       getUserEntriesWithLiability: jest.fn(),
       getUserEntriesWithCollateral: jest.fn(),
@@ -61,10 +54,6 @@ describe('WorkHandler', () => {
       loadUserPositionEstimate: jest.fn(),
     } as unknown as jest.Mocked<SorobanHelper>;
     workHandler = new WorkHandler(db, submissionQueue, oracleHistory, sorobanHelper);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
   });
 
   it('should handle ORACLE_SCAN event', async () => {

@@ -11,190 +11,155 @@ jest.mock('../src/utils/soroban_helper');
 jest.mock('@blend-capital/blend-sdk');
 jest.mock('../src/utils/slack_notifier');
 jest.mock('../src/utils/logger');
+jest.mock('../src/utils/logger.js', () => ({
+  logger: {
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+  },
+}));
 
 describe('WorkSubmitter', () => {
   let workSubmitter: WorkSubmitter;
-  let mockDb: jest.Mocked<AuctioneerDatabase>;
+  let mockDb: AuctioneerDatabase;
+
+  let mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
+  let mockedSorobanHelperConstructor = SorobanHelper as jest.MockedClass<typeof SorobanHelper>;
+
+  const mockedSendSlackNotif = sendSlackNotification as jest.MockedFunction<
+    typeof sendSlackNotification
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockDb = inMemoryAuctioneerDb() as jest.Mocked<AuctioneerDatabase>;
+    mockDb = inMemoryAuctioneerDb();
     workSubmitter = new WorkSubmitter(mockDb);
   });
+  it('should submit a user liquidation successfully', async () => {
+    mockedSorobanHelper.loadAuction = jest.fn().mockResolvedValue(undefined);
+    mockedSorobanHelperConstructor.mockReturnValue(mockedSorobanHelper);
+    const submission = {
+      type: WorkSubmissionType.LiquidateUser,
+      user: 'testUser',
+      liquidationPercent: BigInt(50),
+    };
 
-  describe('submitUserLiquidation', () => {
-    const mockedSendSlackNotif = sendSlackNotification as jest.MockedFunction<
-      typeof sendSlackNotification
-    >;
-    const loggerInfoSpy = jest.spyOn(logger, 'info').mockImplementation();
-    it('should submit a user liquidation successfully', async () => {
-      const mockLoadAuction = jest.fn().mockResolvedValue(undefined);
-      const mockSubmitTransaction = jest.fn().mockResolvedValue(undefined);
-
-      (SorobanHelper as jest.MockedClass<typeof SorobanHelper>).mockImplementation(
-        () =>
-          ({
-            loadAuction: mockLoadAuction,
-            submitTransaction: mockSubmitTransaction,
-          }) as unknown as SorobanHelper
-      );
-      const submission = {
-        type: WorkSubmissionType.LiquidateUser,
-        user: 'testUser',
-        liquidationPercent: BigInt(50),
-      };
-
-      const result = await workSubmitter.submit(submission);
-      const expectedLogMessage = `Successfully submitted liquidation for user: ${submission.user} Liquidation Percent: ${submission.liquidationPercent}`;
-      expect(result).toBe(true);
-      expect(mockLoadAuction).toHaveBeenCalledWith('testUser', AuctionType.Liquidation);
-      expect(mockSubmitTransaction).toHaveBeenCalled();
-      expect(loggerInfoSpy).toHaveBeenCalledWith(expectedLogMessage);
-      expect(mockedSendSlackNotif).toHaveBeenCalledWith(expectedLogMessage);
-    });
-
-    it('should not submit if auction already exists', async () => {
-      const mockLoadAuction = jest.fn().mockResolvedValue({
-        bid: new Map<string, bigint>([['USD', BigInt(123)]]),
-        lot: new Map<string, bigint>([['USD', BigInt(456)]]),
-        block: 500,
-      });
-      const mockSubmitTransaction = jest.fn().mockResolvedValue(undefined);
-
-      (SorobanHelper as jest.MockedClass<typeof SorobanHelper>).mockImplementation(
-        () =>
-          ({
-            loadAuction: mockLoadAuction,
-            submitTransaction: mockSubmitTransaction,
-          }) as unknown as SorobanHelper
-      );
-      const submission = {
-        type: WorkSubmissionType.LiquidateUser,
-        user: 'testUser',
-        liquidationPercent: BigInt(50),
-      };
-
-      const result = await workSubmitter.submit(submission);
-
-      expect(result).toBe(true);
-      expect(mockSubmitTransaction).not.toHaveBeenCalled();
-      expect(loggerInfoSpy).not.toHaveBeenCalled();
-      expect(mockedSendSlackNotif).not.toHaveBeenCalled();
-    });
+    const result = await workSubmitter.submit(submission);
+    const expectedLogMessage = `Successfully submitted liquidation for user: ${submission.user} Liquidation Percent: ${submission.liquidationPercent}`;
+    expect(result).toBe(true);
+    expect(mockedSorobanHelper.loadAuction).toHaveBeenCalledWith(
+      'testUser',
+      AuctionType.Liquidation
+    );
+    expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(expectedLogMessage);
+    expect(mockedSendSlackNotif).toHaveBeenCalledWith(expectedLogMessage);
   });
 
-  describe('submitBadDebtTransfer', () => {
-    it('should submit a bad debt transfer successfully', async () => {
-      const mockLoadAuction = jest.fn().mockResolvedValue(undefined);
-      const mockSubmitTransaction = jest.fn().mockResolvedValue(undefined);
-
-      (SorobanHelper as jest.MockedClass<typeof SorobanHelper>).mockImplementation(
-        () =>
-          ({
-            loadAuction: mockLoadAuction,
-            submitTransaction: mockSubmitTransaction,
-          }) as unknown as SorobanHelper
-      );
-      const submission: WorkSubmission = {
-        type: WorkSubmissionType.BadDebtTransfer,
-        user: 'testUser',
-      };
-
-      const result = await workSubmitter.submit(submission);
-      const expectedLogMessage = `Successfully submitted bad debt transfer for user: ${submission.user}`;
-      expect(result).toBe(true);
-      expect(mockSubmitTransaction).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith(expectedLogMessage);
-      expect(sendSlackNotification).toHaveBeenCalledWith(expectedLogMessage);
+  it('should not submit if auction already exists', async () => {
+    mockedSorobanHelper.loadAuction = jest.fn().mockResolvedValue({
+      bid: new Map<string, bigint>([['USD', BigInt(123)]]),
+      lot: new Map<string, bigint>([['USD', BigInt(456)]]),
+      block: 500,
     });
+    mockedSorobanHelperConstructor.mockReturnValue(mockedSorobanHelper);
+
+    const submission = {
+      type: WorkSubmissionType.LiquidateUser,
+      user: 'testUser',
+      liquidationPercent: BigInt(50),
+    };
+
+    const result = await workSubmitter.submit(submission);
+
+    expect(result).toBe(true);
+    expect(mockedSorobanHelper.submitTransaction).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      'User liquidation auction already exists for user: testUser'
+    );
+    expect(mockedSendSlackNotif).not.toHaveBeenCalled();
   });
 
-  describe('submitBadDebtAuction', () => {
-    it('should submit a bad debt auction successfully', async () => {
-      const mockLoadAuction = jest.fn().mockResolvedValue(undefined);
-      const mockSubmitTransaction = jest.fn().mockResolvedValue(undefined);
+  it('should submit a bad debt transfer successfully', async () => {
+    const submission: WorkSubmission = {
+      type: WorkSubmissionType.BadDebtTransfer,
+      user: 'testUser',
+    };
 
-      (SorobanHelper as jest.MockedClass<typeof SorobanHelper>).mockImplementation(
-        () =>
-          ({
-            loadAuction: mockLoadAuction,
-            submitTransaction: mockSubmitTransaction,
-          }) as unknown as SorobanHelper
-      );
-      const submission: WorkSubmission = {
-        type: WorkSubmissionType.BadDebtAuction,
-      };
-
-      const result = await workSubmitter.submit(submission);
-      const expectedLogMessage = `Successfully submitted bad debt auction`;
-      expect(result).toBe(true);
-      expect(mockSubmitTransaction).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith(expectedLogMessage);
-      expect(sendSlackNotification).toHaveBeenCalledWith(expectedLogMessage);
-    });
-
-    it('should not submit if auction already exists', async () => {
-      const mockLoadAuction = jest.fn().mockResolvedValue({});
-      const mockSubmitTransaction = jest.fn().mockResolvedValue(undefined);
-
-      (SorobanHelper as jest.MockedClass<typeof SorobanHelper>).mockImplementation(
-        () =>
-          ({
-            loadAuction: mockLoadAuction,
-            submitTransaction: mockSubmitTransaction,
-          }) as unknown as SorobanHelper
-      );
-      const submission: WorkSubmission = {
-        type: WorkSubmissionType.BadDebtAuction,
-      };
-
-      const result = await workSubmitter.submit(submission);
-
-      expect(result).toBe(true);
-      expect(mockSubmitTransaction).not.toHaveBeenCalled();
-    });
+    const result = await workSubmitter.submit(submission);
+    const expectedLogMessage = `Successfully submitted bad debt transfer for user: ${submission.user}`;
+    expect(result).toBe(true);
+    expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(expectedLogMessage);
+    expect(sendSlackNotification).toHaveBeenCalledWith(expectedLogMessage);
   });
 
-  describe('onDrop', () => {
-    it('should log an error when a liquidation is dropped', () => {
-      const loggerSpy = jest.spyOn(logger, 'error').mockImplementation();
+  it('should submit a bad debt auction successfully', async () => {
+    mockedSorobanHelper.loadAuction = jest.fn().mockResolvedValue(undefined);
+    mockedSorobanHelperConstructor.mockReturnValue(mockedSorobanHelper);
 
-      const submission = {
-        type: WorkSubmissionType.LiquidateUser,
-        user: 'testUser',
-        liquidationPercent: BigInt(50),
-      };
+    const submission: WorkSubmission = {
+      type: WorkSubmissionType.BadDebtAuction,
+    };
+    const result = await workSubmitter.submit(submission);
+    const expectedLogMessage = `Successfully submitted bad debt auction`;
+    expect(result).toBe(true);
+    expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(expectedLogMessage);
+    expect(sendSlackNotification).toHaveBeenCalledWith(expectedLogMessage);
+  });
 
-      workSubmitter.onDrop(submission);
-
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Dropped liquidation for user: testUser')
-      );
+  it('should not submit if auction already exists', async () => {
+    mockedSorobanHelper.loadAuction = jest.fn().mockResolvedValue({
+      bid: new Map<string, bigint>([['USD', BigInt(123)]]),
+      lot: new Map<string, bigint>([['USD', BigInt(456)]]),
+      block: 500,
     });
-    it('should log an error when a bad debt transfer is dropped', () => {
-      const loggerSpy = jest.spyOn(logger, 'error').mockImplementation();
+    mockedSorobanHelperConstructor.mockReturnValue(mockedSorobanHelper);
 
-      const submission: WorkSubmission = {
-        type: WorkSubmissionType.BadDebtTransfer,
-        user: 'testUser',
-      };
+    const submission: WorkSubmission = {
+      type: WorkSubmissionType.BadDebtAuction,
+    };
 
-      workSubmitter.onDrop(submission);
+    const result = await workSubmitter.submit(submission);
 
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Dropped bad debt transfer for user: testUser')
-      );
-    });
-    it('should log an error when a bad debt auction is dropped', () => {
-      const loggerSpy = jest.spyOn(logger, 'error').mockImplementation();
+    expect(result).toBe(true);
+    expect(mockedSorobanHelper.submitTransaction).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith('Bad debt auction already exists');
+  });
 
-      const submission: WorkSubmission = {
-        type: WorkSubmissionType.BadDebtAuction,
-      };
+  it('should log an error when a liquidation is dropped', () => {
+    const submission = {
+      type: WorkSubmissionType.LiquidateUser,
+      user: 'testUser',
+      liquidationPercent: BigInt(50),
+    };
 
-      workSubmitter.onDrop(submission);
+    workSubmitter.onDrop(submission);
 
-      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('Dropped bad debt auction'));
-    });
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Dropped liquidation for user: testUser')
+    );
+  });
+  it('should log an error when a bad debt transfer is dropped', () => {
+    const submission: WorkSubmission = {
+      type: WorkSubmissionType.BadDebtTransfer,
+      user: 'testUser',
+    };
+
+    workSubmitter.onDrop(submission);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Dropped bad debt transfer for user: testUser')
+    );
+  });
+  it('should log an error when a bad debt auction is dropped', () => {
+    const submission: WorkSubmission = {
+      type: WorkSubmissionType.BadDebtAuction,
+    };
+
+    workSubmitter.onDrop(submission);
+
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Dropped bad debt auction'));
   });
 });

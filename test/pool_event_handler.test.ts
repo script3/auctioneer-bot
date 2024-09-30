@@ -15,7 +15,7 @@ import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import { inMemoryAuctioneerDb, mockedPool } from './helpers/mocks.js';
 import { logger } from '../src/utils/logger.js';
 import { deadletterEvent, sendEvent } from '../src/utils/messages.js';
-import { ChildProcess } from 'child_process';
+
 jest.mock('../src/user.js');
 jest.mock('../src/utils/soroban_helper.js');
 jest.mock('../src/utils/slack_notifier.js');
@@ -55,47 +55,47 @@ jest.mock('../src/utils/config.js', () => {
     APP_CONFIG: config,
   };
 });
-jest.mock('child_process');
 
 describe('poolEventHandler', () => {
   let db: AuctioneerDatabase;
+  let poolEventHandler: PoolEventHandler;
   let mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
   let mockedUpdateUser = updateUser as jest.MockedFunction<typeof updateUser>;
   let mockedSendEvent = sendEvent as jest.MockedFunction<typeof sendEvent>;
-  const mockedWorkerProcess = {
-    send: jest.fn(),
-    on: jest.fn(),
-    // Add any other methods or properties you need to mock
-  } as unknown as ChildProcess;
+  let pool_user: string;
+  let estimate: PositionsEstimate;
+  let user: PoolUser;
 
-  let poolEventHandler: PoolEventHandler;
-  let pool_user = Keypair.random().publicKey();
-  let estimate = {
-    totalEffectiveCollateral: 2000,
-    totalEffectiveLiabilities: 1000,
-  } as PositionsEstimate;
-  let user = new PoolUser(
-    pool_user,
-    new Positions(
-      new Map([
-        [0, BigInt(12345)],
-        [1, BigInt(54321)],
-      ]),
-      new Map([[3, BigInt(789)]]),
-      new Map()
-    ),
-    new Map()
-  );
-  mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
-    estimate: estimate,
-    user,
-  });
+  const mockedWorkerProcess = { name: 'worker' } as any;
 
   beforeEach(() => {
     jest.clearAllMocks();
     db = inMemoryAuctioneerDb();
     mockedSorobanHelper.loadPool.mockResolvedValue(mockedPool);
     poolEventHandler = new PoolEventHandler(db, mockedSorobanHelper, mockedWorkerProcess);
+    const fixedTimestamp = 1609459200000;
+    Date.now = jest.fn(() => fixedTimestamp);
+    pool_user = Keypair.random().publicKey();
+    estimate = {
+      totalEffectiveCollateral: 2000,
+      totalEffectiveLiabilities: 1000,
+    } as PositionsEstimate;
+    user = new PoolUser(
+      pool_user,
+      new Positions(
+        new Map([
+          [0, BigInt(12345)],
+          [1, BigInt(54321)],
+        ]),
+        new Map([[3, BigInt(789)]]),
+        new Map()
+      ),
+      new Map()
+    );
+    mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+      estimate: estimate,
+      user,
+    });
   });
 
   it('should process event successfully without retries', async () => {
@@ -118,13 +118,9 @@ describe('poolEventHandler', () => {
         },
       },
     };
-
-    jest.spyOn(poolEventHandler, 'handlePoolEvent').mockResolvedValue();
-
     await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
-
-    expect(poolEventHandler.handlePoolEvent).toHaveBeenCalledWith(poolEvent);
     expect(logger.info).toHaveBeenCalledWith(`Successfully processed event. ${poolEvent.event.id}`);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('should retry processing event and succeed', async () => {
@@ -147,15 +143,12 @@ describe('poolEventHandler', () => {
         },
       },
     };
-
-    const handlePoolEventMock = jest
-      .spyOn(poolEventHandler, 'handlePoolEvent')
+    mockedSorobanHelper.loadPool
       .mockRejectedValueOnce(new Error('Temporary error'))
-      .mockResolvedValueOnce();
-
+      .mockResolvedValue(mockedPool);
     await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
 
-    expect(handlePoolEventMock).toHaveBeenCalledTimes(2);
+    expect(mockedSorobanHelper.loadPool).toHaveBeenCalledTimes(2);
     expect(logger.warn).toHaveBeenCalledWith(
       `Error processing event. ${poolEvent.event.id} Error: Error: Temporary error`
     );
@@ -182,12 +175,10 @@ describe('poolEventHandler', () => {
         },
       },
     };
-
-    jest.spyOn(poolEventHandler, 'handlePoolEvent').mockRejectedValue(new Error('Permanent error'));
-
+    mockedSorobanHelper.loadPool.mockRejectedValue(new Error('Permanent error'));
     await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
 
-    expect(poolEventHandler.handlePoolEvent).toHaveBeenCalledTimes(2);
+    expect(mockedSorobanHelper.loadPool).toHaveBeenCalledTimes(2);
     expect(deadletterEvent).toHaveBeenCalledWith(poolEvent);
   });
 
@@ -212,14 +203,13 @@ describe('poolEventHandler', () => {
       },
     };
 
-    jest.spyOn(poolEventHandler, 'handlePoolEvent').mockRejectedValue(new Error('Permanent error'));
-    (deadletterEvent as jest.Mock).mockImplementation(() => {
-      throw new Error('Mocked error');
-    });
+    mockedSorobanHelper.loadPool.mockRejectedValue(new Error('Permanent error'));
+    const mockDeadLetterEvent = deadletterEvent as jest.MockedFunction<typeof deadletterEvent>;
+    mockDeadLetterEvent.mockRejectedValue(new Error('Mocked error'));
 
     await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
 
-    expect(poolEventHandler.handlePoolEvent).toHaveBeenCalledTimes(2);
+    expect(mockedSorobanHelper.loadPool).toHaveBeenCalledTimes(2);
     expect(deadletterEvent).toHaveBeenCalledWith(poolEvent);
     expect(logger.error).toHaveBeenNthCalledWith(
       1,
