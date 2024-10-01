@@ -99,14 +99,14 @@ export class WorkHandler {
           Array.from(usersToCheck)
         );
         for (const liquidation of liquidations) {
-          this.submissionQueue.addSubmission(liquidation, 2);
+          this.submissionQueue.addSubmission(liquidation, 3);
         }
         break;
       }
       case EventType.LIQ_SCAN: {
         const liquidations = await scanUsers(this.db, this.sorobanHelper);
         for (const liquidation of liquidations) {
-          this.submissionQueue.addSubmission(liquidation, 2);
+          this.submissionQueue.addSubmission(liquidation, 3);
         }
         break;
       }
