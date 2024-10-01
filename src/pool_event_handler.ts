@@ -1,15 +1,16 @@
 import { PoolEventType } from '@blend-capital/blend-sdk';
 import { canFillerBid } from './auction.js';
-import { PoolEventEvent } from './events.js';
+import { EventType, PoolEventEvent } from './events.js';
 import { updateUser } from './user.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
-import { deadletterEvent } from './utils/messages.js';
+import { deadletterEvent, sendEvent } from './utils/messages.js';
 import { sendSlackNotification } from './utils/slack_notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
-
+import { WorkSubmission } from './work_submitter.js';
+import { ChildProcess } from 'child_process';
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 200;
 
@@ -19,10 +20,12 @@ const RETRY_DELAY = 200;
 export class PoolEventHandler {
   private db: AuctioneerDatabase;
   private sorobanHelper: SorobanHelper;
+  private worker: ChildProcess;
 
-  constructor(db: AuctioneerDatabase, sorobanHelper: SorobanHelper) {
+  constructor(db: AuctioneerDatabase, sorobanHelper: SorobanHelper, worker: ChildProcess) {
     this.db = db;
     this.sorobanHelper = sorobanHelper;
+    this.worker = worker;
   }
 
   /**
@@ -31,7 +34,9 @@ export class PoolEventHandler {
    *
    * @param appEvent - The event to process
    */
-  async processEventWithRetryAndDeadLetter(poolEvent: PoolEventEvent): Promise<void> {
+  async processEventWithRetryAndDeadLetter(
+    poolEvent: PoolEventEvent
+  ): Promise<void | WorkSubmission> {
     let retries = 0;
     while (true) {
       try {
@@ -140,8 +145,27 @@ export class PoolEventHandler {
             const { estimate: userPositionsEstimate, user } =
               await this.sorobanHelper.loadUserPositionEstimate(poolEvent.event.user);
             updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
+          } else if (poolEvent.event.auctionType === AuctionType.BadDebt) {
+            sendEvent(this.worker, {
+              type: EventType.CHECK_USER,
+              timestamp: Date.now(),
+              userId: APP_CONFIG.backstopAddress,
+            });
           }
         }
+        break;
+      }
+
+      case PoolEventType.BadDebt: {
+        // user has transferred bad debt to the backstop address
+        const { estimate: userPositionsEstimate, user } =
+          await this.sorobanHelper.loadUserPositionEstimate(poolEvent.event.user);
+        updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
+        sendEvent(this.worker, {
+          type: EventType.CHECK_USER,
+          timestamp: Date.now(),
+          userId: APP_CONFIG.backstopAddress,
+        });
         break;
       }
       default: {

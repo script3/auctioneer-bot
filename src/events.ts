@@ -7,6 +7,7 @@ export enum EventType {
   LIQ_SCAN = 'liq_scan',
   POOL_EVENT = 'pool_event',
   USER_REFRESH = 'user_refresh',
+  CHECK_USER = 'check_user',
 }
 
 // ********* Shared **********
@@ -17,7 +18,8 @@ export type AppEvent =
   | OracleScanEvent
   | LiqScanEvent
   | PoolEventEvent
-  | UserRefreshEvent;
+  | UserRefreshEvent
+  | CheckUserEvent;
 
 /**
  * Base interface for all events.
@@ -75,4 +77,15 @@ export interface UserRefreshEvent extends BaseEvent {
    * The cutoff ledger such that any user data older than this will be refreshed.
    */
   cutoff: number;
+}
+
+/**
+ * Event to check a user for liquidations or bad debt.
+ */
+export interface CheckUserEvent extends BaseEvent {
+  type: EventType.CHECK_USER;
+  /**
+   * The user to check.
+   */
+  userId: string;
 }

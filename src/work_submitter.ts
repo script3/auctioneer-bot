@@ -67,8 +67,17 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         user: userLiquidation.user,
         percent_liquidated: userLiquidation.liquidationPercent,
       });
+      const auctionExists =
+        (await sorobanHelper.loadAuction(userLiquidation.user, AuctionType.Liquidation)) !==
+        undefined;
+      if (auctionExists) {
+        logger.info(`User liquidation auction already exists for user: ${userLiquidation.user}`);
+        return true;
+      }
       await sorobanHelper.submitTransaction(op, APP_CONFIG.keypair);
-      logger.info(`Submitted liquidation for user: ${userLiquidation.user}`);
+      const logMessage = `Successfully submitted liquidation for user: ${userLiquidation.user} Liquidation Percent: ${userLiquidation.liquidationPercent}`;
+      logger.info(logMessage);
+      await sendSlackNotification(logMessage);
       return true;
     } catch (e: any) {
       const logMessage =
@@ -106,6 +115,13 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
     try {
       const pool = new PoolContract(APP_CONFIG.poolAddress);
       let op = pool.newBadDebtAuction();
+      const auctionExists =
+        (await sorobanHelper.loadAuction(APP_CONFIG.backstopAddress, AuctionType.BadDebt)) !==
+        undefined;
+      if (auctionExists) {
+        logger.info(`Bad debt auction already exists`);
+        return true;
+      }
       await sorobanHelper.submitTransaction(op, APP_CONFIG.keypair);
       const logMessage = `Successfully submitted bad debt auction`;
       logger.info(logMessage);
@@ -119,12 +135,21 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
     }
   }
 
-  onDrop(submission: WorkSubmission): void {
+  async onDrop(submission: WorkSubmission): Promise<void> {
     // TODO: Send slack alert for dropped submission
+    let logMessage: string;
     switch (submission.type) {
       case WorkSubmissionType.LiquidateUser:
-        logger.error(`Dropped liquidation for user: ${submission.user}`);
+        logMessage = `Dropped liquidation for user: ${submission.user}`;
+        break;
+      case WorkSubmissionType.BadDebtTransfer:
+        logMessage = `Dropped bad debt transfer for user: ${submission.user}`;
+        break;
+      case WorkSubmissionType.BadDebtAuction:
+        logMessage = `Dropped bad debt auction`;
         break;
     }
+    logger.error(logMessage);
+    await sendSlackNotification(logMessage);
   }
 }

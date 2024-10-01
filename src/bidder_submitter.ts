@@ -172,15 +172,27 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
     return true;
   }
 
-  onDrop(submission: BidderSubmission): void {
-    // TODO: Send slack alert for dropped submission
-    // TODO: Is logging enough for dropped submissions or do they need a seperate record?
+  async onDrop(submission: BidderSubmission): Promise<void> {
+    let logMessage: string;
     switch (submission.type) {
       case BidderSubmissionType.BID:
         this.db.deleteAuctionEntry(
           submission.auctionEntry.user_id,
           submission.auctionEntry.auction_type
         );
+        logMessage =
+          `Dropped auction bid\n` +
+          `Type: ${AuctionType[submission.auctionEntry.auction_type]}\n` +
+          `User: ${submission.auctionEntry.user_id}\n` +
+          `Start Block: ${submission.auctionEntry.start_block}\n` +
+          `Fill Block: ${submission.auctionEntry.fill_block}\n` +
+          `Filler: ${submission.filler.name}\n`;
+        break;
+      case BidderSubmissionType.UNWIND:
+        logMessage = `Dropped filler unwind\n` + `Filler: ${submission.filler.name}\n`;
+        break;
     }
+    logger.error(logMessage);
+    await sendSlackNotification(logMessage);
   }
 }

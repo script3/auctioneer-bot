@@ -97,7 +97,7 @@ async function main() {
   collectorInterval = setInterval(async () => {
     try {
       let sorobanHelper = new SorobanHelper();
-      let poolEventHandler = new PoolEventHandler(db, sorobanHelper);
+      let poolEventHandler = new PoolEventHandler(db, sorobanHelper, worker);
       await runCollector(worker, bidder, db, rpc, APP_CONFIG.poolAddress, poolEventHandler);
     } catch (e: any) {
       logger.error(`Error in collector`, e);
