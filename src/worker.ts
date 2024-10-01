@@ -1,5 +1,4 @@
 import { Server } from '@stellar/stellar-sdk/rpc';
-import { EventType } from './events.js';
 import { OracleHistory } from './oracle_history.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
@@ -11,7 +10,7 @@ import { WorkSubmitter } from './work_submitter.js';
 async function main() {
   const db = AuctioneerDatabase.connect();
   const submissionQueue = new WorkSubmitter();
-  const oracleHistory = new OracleHistory(0.05);
+  const oracleHistory = new OracleHistory(0.025);
 
   process.on('message', async (message: any) => {
     let appEvent = readEvent(message);
