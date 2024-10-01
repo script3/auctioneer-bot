@@ -10,7 +10,7 @@ import { WorkSubmitter } from './work_submitter.js';
 
 async function main() {
   const db = AuctioneerDatabase.connect();
-  const submissionQueue = new WorkSubmitter(db);
+  const submissionQueue = new WorkSubmitter();
   const oracleHistory = new OracleHistory(0.05);
 
   process.on('message', async (message: any) => {

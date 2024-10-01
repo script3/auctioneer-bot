@@ -1,12 +1,11 @@
-import { PoolContract } from '@blend-capital/blend-sdk';
+import { ContractError, ContractErrorType, PoolContract } from '@blend-capital/blend-sdk';
 import { APP_CONFIG } from './utils/config.js';
-import { AuctioneerDatabase, AuctionType } from './utils/db.js';
+import { AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
+import { sendSlackNotification } from './utils/slack_notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
-import { log } from 'winston';
 
 export type WorkSubmission = UserLiquidation | BadDebtTransfer | BadDebtAuction;
 
@@ -32,11 +31,8 @@ export interface BadDebtAuction {
 }
 
 export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
-  db: AuctioneerDatabase;
-
-  constructor(db: AuctioneerDatabase) {
+  constructor() {
     super();
-    this.db = db;
   }
 
   // @dev: Return true to acknowledge the submission, or false to retry
@@ -80,10 +76,27 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
       await sendSlackNotification(logMessage);
       return true;
     } catch (e: any) {
+      // if pool throws a "LIQ_TOO_SMALL" or "LIQ_TOO_LARGE" error, adjust the fill percentage
+      // by 1 percentage point before retrying.
+      if (e instanceof ContractError) {
+        console.log(e);
+        if (
+          e.type === ContractErrorType.InvalidLiqTooSmall &&
+          userLiquidation.liquidationPercent < BigInt(100)
+        ) {
+          userLiquidation.liquidationPercent += BigInt(1);
+        } else if (
+          e.type === ContractErrorType.InvalidLiqTooLarge &&
+          userLiquidation.liquidationPercent > BigInt(1)
+        ) {
+          userLiquidation.liquidationPercent -= BigInt(1);
+        }
+      }
       const logMessage =
         `Error creating user liquidation\n` +
         `User: ${userLiquidation.user}\n` +
-        `Liquidation Percent: ${userLiquidation.liquidationPercent}\nError: ${stringify(e)}\n`;
+        `Liquidation Percent: ${userLiquidation.liquidationPercent}\nError: ${stringify(e)}\n` +
+        `Error: ${e}\n`;
       logger.error(logMessage);
       await sendSlackNotification(`<!channel>` + logMessage);
       return false;

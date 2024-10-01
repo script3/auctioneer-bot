@@ -2,7 +2,7 @@ import { AppEvent, EventType } from './events.js';
 import { checkUsersForLiquidationsAndBadDebt, scanUsers } from './liquidations.js';
 import { OracleHistory } from './oracle_history.js';
 import { updateUser } from './user.js';
-import { AuctioneerDatabase, UserEntry } from './utils/db.js';
+import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
@@ -128,7 +128,7 @@ export class WorkHandler {
           appEvent.userId,
         ]);
         for (const submission of submissions) {
-          this.submissionQueue.addSubmission(submission, 2);
+          this.submissionQueue.addSubmission(submission, 3);
         }
       }
       default:
