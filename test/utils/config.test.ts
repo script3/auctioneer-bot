@@ -1,6 +1,6 @@
 // config.test.ts
-import { validateAppConfig, validateFiller, validatePriceSource } from '../../src/utils/config';
 import { Keypair } from '@stellar/stellar-sdk';
+import { validateAppConfig, validateFiller, validatePriceSource } from '../../src/utils/config';
 
 describe('validateAppConfig', () => {
   it('should return false for non-object config', () => {

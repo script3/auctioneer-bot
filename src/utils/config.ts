@@ -33,12 +33,16 @@ export interface AppConfig {
   slackWebhook: string | undefined;
 }
 
-const APP_CONFIG = parse<AppConfig>(readFileSync('./data/config.json', 'utf-8'));
-let isValid = validateAppConfig(APP_CONFIG);
-if (!isValid) {
-  throw new Error('Invalid config file');
+let APP_CONFIG: AppConfig;
+if (process.env.NODE_ENV !== 'test') {
+  APP_CONFIG = parse<AppConfig>(readFileSync('./data/config.json', 'utf-8'));
+  let isValid = validateAppConfig(APP_CONFIG);
+  if (!isValid) {
+    throw new Error('Invalid config file');
+  }
 }
 export { APP_CONFIG };
+
 export function validateAppConfig(config: any): boolean {
   if (typeof config !== 'object' || config === null) {
     return false;
