@@ -61,23 +61,6 @@ describe('SubmissionQueue', () => {
     const retrySubmission = jest.spyOn(queue as any, 'retrySubmission' as any);
     const onDrop = jest.spyOn(queue as any, 'onDrop' as any);
     const submission = { name: 'submission', ack: false };
-    queue.addSubmission(submission, 3, 100);
-    while (queue.processing) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    expect(queue.submissions.length).toBe(0);
-    // 3 times to retry + 1 time to drop
-    expect(retrySubmission).toHaveBeenCalledTimes(4);
-    expect(logger.error).toHaveBeenCalledWith(
-      'Submission retry limit reached, dropping submission: ' + JSON.stringify(submission)
-    );
-    expect(onDrop).toHaveBeenCalledWith(submission);
-  });
-
-  test('should retry entries when not acknowledged and drop entries after max retries', async () => {
-    const retrySubmission = jest.spyOn(queue as any, 'retrySubmission' as any);
-    const onDrop = jest.spyOn(queue as any, 'onDrop' as any);
-    const submission = { name: 'submission', ack: false };
     let timer_start = Date.now();
     queue.addSubmission(submission, 3, 100);
     while (queue.processing) {
