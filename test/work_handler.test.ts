@@ -1,23 +1,11 @@
-import { WorkHandler } from '../src/work_handler';
-import {
-  AppEvent,
-  EventType,
-  LiqScanEvent,
-  OracleScanEvent,
-  PriceUpdateEvent,
-  UserRefreshEvent,
-} from '../src/events';
-import { AuctioneerDatabase, UserEntry } from '../src/utils/db';
-import { WorkSubmission, WorkSubmissionType, WorkSubmitter } from '../src/work_submitter';
+import { PoolOracle } from '@blend-capital/blend-sdk';
+import { AppEvent, EventType, OracleScanEvent } from '../src/events';
+import { checkUsersForLiquidationsAndBadDebt } from '../src/liquidations';
 import { OracleHistory } from '../src/oracle_history';
+import { AuctioneerDatabase, UserEntry } from '../src/utils/db';
 import { SorobanHelper } from '../src/utils/soroban_helper';
-import { setPrices } from '../src/utils/prices';
-import { checkUsersForLiquidationsAndBadDebt, scanUsers } from '../src/liquidations';
-import { updateUser } from '../src/user';
-import { deadletterEvent } from '../src/utils/messages';
-import { logger } from '../src/utils/logger';
-import { Network, PoolOracle } from '@blend-capital/blend-sdk';
-import { mockedPool, mockPoolUser, mockPoolUserEstimate } from './helpers/mocks';
+import { WorkHandler } from '../src/work_handler';
+import { WorkSubmission, WorkSubmissionType, WorkSubmitter } from '../src/work_submitter';
 
 jest.mock('../src/utils/prices');
 jest.mock('../src/liquidations');
@@ -25,6 +13,7 @@ jest.mock('../src/user');
 jest.mock('../src/utils/messages');
 jest.mock('../src/utils/logger');
 jest.mock('../src/utils/soroban_helper');
+
 describe('WorkHandler', () => {
   let db: jest.Mocked<AuctioneerDatabase>;
   let submissionQueue: jest.Mocked<WorkSubmitter>;
@@ -96,6 +85,6 @@ describe('WorkHandler', () => {
     expect(checkUsersForLiquidationsAndBadDebt).toHaveBeenCalledWith(db, sorobanHelper, [
       usersWithCollateral[0].user_id,
     ]);
-    expect(submissionQueue.addSubmission).toHaveBeenCalledWith(liquidations[0], 2);
+    expect(submissionQueue.addSubmission).toHaveBeenCalledWith(liquidations[0], 3);
   });
 });

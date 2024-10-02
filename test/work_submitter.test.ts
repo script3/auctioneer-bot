@@ -39,6 +39,7 @@ describe('WorkSubmitter', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    workSubmitter = new WorkSubmitter();
     mockedSorobanHelperConstructor.mockReturnValue(mockedSorobanHelper);
   });
 

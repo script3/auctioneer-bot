@@ -79,7 +79,6 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
       // if pool throws a "LIQ_TOO_SMALL" or "LIQ_TOO_LARGE" error, adjust the fill percentage
       // by 1 percentage point before retrying.
       if (e instanceof ContractError) {
-        console.log(e);
         if (
           e.type === ContractErrorType.InvalidLiqTooSmall &&
           userLiquidation.liquidationPercent < BigInt(100)
