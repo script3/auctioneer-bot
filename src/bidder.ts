@@ -1,12 +1,9 @@
-import { calculateBlockFillAndPercent } from './auction.js';
-import { AuctionBid, BidderSubmissionType, BidderSubmitter } from './bidder_submitter.js';
+import { BidderHandler } from './bidder_handler.js';
+import { BidderSubmitter } from './bidder_submitter.js';
 import { EventType } from './events.js';
-import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionType } from './utils/db.js';
-import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { readEvent } from './utils/messages.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 
 export interface OngoingAuction {
@@ -21,69 +18,18 @@ async function main() {
 
   process.on('message', async (message: any) => {
     let appEvent = readEvent(message);
-    if (appEvent?.type === EventType.LEDGER) {
+    if (appEvent) {
       try {
         const timer = Date.now();
-        const nextLedger = appEvent.ledger + 1;
-        logger.info(`Processing for ledger: ${nextLedger}`);
-        const auctions = db.getAllAuctionEntries();
+        logger.info(`Processing: ${message?.data}`);
         const sorobanHelper = new SorobanHelper();
-        db.setStatusEntry({ name: 'bidder', latest_ledger: appEvent.ledger });
-
-        for (let auction of auctions) {
-          const filler = APP_CONFIG.fillers.find((f) => f.keypair.publicKey() === auction.filler);
-          if (filler === undefined) {
-            logger.error(`Filler not found for auction: ${stringify(auction)}`);
-            continue;
-          }
-
-          if (submissionQueue.containsAuction(auction)) {
-            // auction already being bid on
-            continue;
-          }
-
-          const ledgersToFill = auction.fill_block - nextLedger;
-          if (auction.fill_block === 0 || ledgersToFill <= 5 || ledgersToFill % 10 === 0) {
-            // recalculate the auction
-            const auctionData = await sorobanHelper.loadAuction(
-              auction.user_id,
-              auction.auction_type
-            );
-            if (auctionData === undefined) {
-              db.deleteAuctionEntry(auction.user_id, auction.auction_type);
-              continue;
-            }
-            const fillCalculation = await calculateBlockFillAndPercent(
-              filler,
-              auction.auction_type,
-              auctionData,
-              sorobanHelper,
-              db
-            );
-            const logMessage =
-              `Auction Calculation\n` +
-              `Type: ${AuctionType[auction.auction_type]}\n` +
-              `User: ${auction.user_id}\n` +
-              `Calculation: ${stringify(fillCalculation, 2)}\n` +
-              `Ledgers To Fill In: ${fillCalculation.fillBlock - nextLedger}\n`;
-            if (auction.fill_block === 0) {
-              await sendSlackNotification(logMessage);
-            }
-            logger.info(logMessage);
-            auction.fill_block = fillCalculation.fillBlock;
-            db.setAuctionEntry(auction);
-          }
-
-          if (auction.fill_block <= nextLedger) {
-            let submission: AuctionBid = {
-              type: BidderSubmissionType.BID,
-              filler: filler,
-              auctionEntry: auction,
-            };
-            submissionQueue.addSubmission(submission, 10);
-          }
-        }
-
+        const eventHandler = new BidderHandler(db, submissionQueue, sorobanHelper);
+        let latestLedger =
+          appEvent.type === EventType.LEDGER
+            ? appEvent.ledger
+            : await sorobanHelper.loadLatestLedger();
+        db.setStatusEntry({ name: 'bidder', latest_ledger: latestLedger });
+        await eventHandler.processEvent(appEvent);
         logger.info(
           `Finished: ${message?.data} in ${Date.now() - timer}ms with delay ${timer - appEvent.timestamp}ms`
         );

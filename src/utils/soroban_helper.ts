@@ -11,7 +11,6 @@ import {
 } from '@blend-capital/blend-sdk';
 import {
   Account,
-  Address,
   BASE_FEE,
   Contract,
   Keypair,
@@ -23,8 +22,6 @@ import {
 } from '@stellar/stellar-sdk';
 import { APP_CONFIG } from './config.js';
 import { logger } from './logger.js';
-import { Api } from '@stellar/stellar-sdk/rpc';
-import { stringify } from './json.js';
 
 export interface PoolUserEst {
   estimate: PositionsEstimate;
@@ -46,6 +43,17 @@ export class SorobanHelper {
       },
     };
     this.pool_cache = undefined;
+  }
+
+  async loadLatestLedger(): Promise<number> {
+    try {
+      let rpc = new SorobanRpc.Server(this.network.rpc, this.network.opts);
+      let ledger = await rpc.getLatestLedger();
+      return ledger.sequence;
+    } catch (e) {
+      logger.error(`Error loading latest ledger: ${e}`);
+      throw e;
+    }
   }
 
   async loadPool(): Promise<Pool> {

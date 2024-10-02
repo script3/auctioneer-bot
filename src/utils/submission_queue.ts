@@ -4,6 +4,10 @@ import { logger } from './logger.js';
 export interface Retriable<T> {
   // The remaining number of retries for this submission
   retries: number;
+  // The timestamp when this event was processed
+  timestamp: number;
+  // Minimum retry timeout
+  minRetryTimeout: number;
   // The submission to be processed
   submission: T;
 }
@@ -28,11 +32,15 @@ export abstract class SubmissionQueue<T> {
   /**
    * Add a submission to the queue. If the queue is not currently processing submissions,
    * the submission will be processed immediately.
-   * @param submission
+   * @param submission - The submission to add to the queue
+   * @param maxRetries - The maximum number of retries for the submission
+   * @param minRetryTimeout - The minimum time to wait before retrying the submission
    */
-  addSubmission(submission: T, maxRetries: number): void {
+  addSubmission(submission: T, maxRetries: number, minRetryTimeout: number = 1000): void {
     let retrieableSubmission: Retriable<T> = {
       retries: maxRetries,
+      timestamp: 0,
+      minRetryTimeout: minRetryTimeout,
       submission: submission,
     };
     this.submissions.push(retrieableSubmission);
@@ -65,6 +73,13 @@ export abstract class SubmissionQueue<T> {
 
     while (this.submissions.length > 0) {
       let retrieableSubmission = this.submissions[0];
+      let time_now = Date.now();
+      let startTime = retrieableSubmission.timestamp + retrieableSubmission.minRetryTimeout;
+      if (time_now < startTime) {
+        let waitTime = startTime - time_now;
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
+      retrieableSubmission.timestamp = Date.now();
       try {
         let ack = await this.submit(retrieableSubmission.submission);
         if (!ack) {
