@@ -1,17 +1,19 @@
 import { AuctionData, FixedMath, Request, RequestType } from '@blend-capital/blend-sdk';
-import { Filler } from './utils/config.js';
-import { SorobanHelper } from './utils/soroban_helper.js';
-import { AuctioneerDatabase, AuctionType } from './utils/db.js';
-import { APP_CONFIG } from './utils/config.js';
-import { AuctionBid } from './bidder_submitter.js';
 import { Asset } from '@stellar/stellar-sdk';
+import { AuctionBid } from './bidder_submitter.js';
+import { APP_CONFIG, Filler } from './utils/config.js';
+import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { logger } from './utils/logger.js';
-interface FillCalculation {
+import { SorobanHelper } from './utils/soroban_helper.js';
+
+export interface FillCalculation {
+  // The block number to fill the auction at
   fillBlock: number;
+  // The percent of the auction to fill
   fillPercent: number;
 }
 
-interface AuctionValue {
+export interface AuctionValue {
   effectiveCollateral: number;
   effectiveLiabilities: number;
   lotValue: number;

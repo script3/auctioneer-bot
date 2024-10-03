@@ -1,5 +1,5 @@
-import { SubmissionQueue } from '../../src/utils/submission_queue';
 import { logger } from '../../src/utils/logger';
+import { SubmissionQueue } from '../../src/utils/submission_queue';
 
 jest.mock('../../src/utils/logger.js');
 
@@ -9,6 +9,17 @@ interface QueueItem {
 }
 class TestSubmissionQueue extends SubmissionQueue<QueueItem> {
   async submit(submission: QueueItem): Promise<boolean> {
+    return submission.ack;
+  }
+
+  onDrop(submission: QueueItem): void {
+    logger.error(`Dropped submission: ${submission}`);
+  }
+}
+
+class TestSlowSubmissionQueue extends SubmissionQueue<QueueItem> {
+  async submit(submission: QueueItem): Promise<boolean> {
+    await new Promise((resolve) => setTimeout(resolve, 100));
     return submission.ack;
   }
 
@@ -50,10 +61,12 @@ describe('SubmissionQueue', () => {
     const retrySubmission = jest.spyOn(queue as any, 'retrySubmission' as any);
     const onDrop = jest.spyOn(queue as any, 'onDrop' as any);
     const submission = { name: 'submission', ack: false };
-    queue.addSubmission(submission, 3);
+    let timer_start = Date.now();
+    queue.addSubmission(submission, 3, 100);
     while (queue.processing) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+    let time_passed = Date.now() - timer_start;
     expect(queue.submissions.length).toBe(0);
     // 3 times to retry + 1 time to drop
     expect(retrySubmission).toHaveBeenCalledTimes(4);
@@ -61,5 +74,52 @@ describe('SubmissionQueue', () => {
       'Submission retry limit reached, dropping submission: ' + JSON.stringify(submission)
     );
     expect(onDrop).toHaveBeenCalledWith(submission);
+    expect(time_passed).toBeGreaterThanOrEqual(300);
+    expect(time_passed).toBeLessThanOrEqual(400);
+  });
+
+  test('should respect minRetryTimeout', async () => {
+    const retrySubmission = jest.spyOn(queue as any, 'retrySubmission' as any);
+    const onDrop = jest.spyOn(queue as any, 'onDrop' as any);
+    const submission = { name: 'submission', ack: false };
+    let timer_start = Date.now();
+    queue.addSubmission(submission, 3, 500);
+    while (queue.processing) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    let time_passed = Date.now() - timer_start;
+    expect(queue.submissions.length).toBe(0);
+    // 3 times to retry + 1 time to drop
+    expect(retrySubmission).toHaveBeenCalledTimes(4);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Submission retry limit reached, dropping submission: ' + JSON.stringify(submission)
+    );
+    expect(onDrop).toHaveBeenCalledWith(submission);
+    expect(time_passed).toBeGreaterThanOrEqual(1500);
+    expect(time_passed).toBeLessThanOrEqual(1600);
+  });
+
+  test('should include retry timeout with processing time', async () => {
+    let slow_queue = new TestSlowSubmissionQueue();
+    const retrySubmission = jest.spyOn(slow_queue as any, 'retrySubmission' as any);
+    const onDrop = jest.spyOn(slow_queue as any, 'onDrop' as any);
+    const submission = { name: 'submission', ack: false };
+
+    let timer_start = Date.now();
+    slow_queue.addSubmission(submission, 3, 75);
+    while (slow_queue.processing) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    let time_passed = Date.now() - timer_start;
+    expect(slow_queue.submissions.length).toBe(0);
+    // 3 times to retry + 1 time to drop
+    expect(retrySubmission).toHaveBeenCalledTimes(4);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Submission retry limit reached, dropping submission: ' + JSON.stringify(submission)
+    );
+    expect(onDrop).toHaveBeenCalledWith(submission);
+    // event is tried once + 3 retries and takes 100 ms per attempt
+    expect(time_passed).toBeGreaterThanOrEqual(400);
+    expect(time_passed).toBeLessThanOrEqual(500);
   });
 });

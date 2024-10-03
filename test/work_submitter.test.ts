@@ -189,7 +189,7 @@ describe('WorkSubmitter', () => {
       liquidationPercent: BigInt(50),
     };
 
-    workSubmitter.addSubmission(submission, 3);
+    workSubmitter.addSubmission(submission, 3, 0);
     while (workSubmitter.processing) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }

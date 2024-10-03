@@ -1,4 +1,5 @@
 import { PoolContract } from '@blend-capital/blend-sdk';
+import { SorobanRpc } from '@stellar/stellar-sdk';
 import {
   buildFillRequests,
   calculateAuctionValue,
@@ -9,10 +10,9 @@ import { APP_CONFIG, Filler } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
+import { sendSlackNotification } from './utils/slack_notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
-import { SorobanRpc } from '@stellar/stellar-sdk';
-import { sendSlackNotification } from './utils/slack_notifier.js';
 
 export type BidderSubmission = AuctionBid | FillerUnwind;
 
@@ -176,10 +176,6 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
     let logMessage: string;
     switch (submission.type) {
       case BidderSubmissionType.BID:
-        this.db.deleteAuctionEntry(
-          submission.auctionEntry.user_id,
-          submission.auctionEntry.auction_type
-        );
         logMessage =
           `Dropped auction bid\n` +
           `Type: ${AuctionType[submission.auctionEntry.auction_type]}\n` +

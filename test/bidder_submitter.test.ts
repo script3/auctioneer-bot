@@ -1,22 +1,22 @@
-import {
-  BidderSubmitter,
-  BidderSubmissionType,
-  AuctionBid,
-  FillerUnwind,
-} from '../src/bidder_submitter';
-import { AuctioneerDatabase, AuctionEntry, AuctionType } from '../src/utils/db';
-import { SorobanHelper } from '../src/utils/soroban_helper';
-import { inMemoryAuctioneerDb } from './helpers/mocks';
-import { logger } from '../src/utils/logger';
+import { RequestType } from '@blend-capital/blend-sdk';
+import { Keypair } from '@stellar/stellar-sdk';
 import {
   buildFillRequests,
   calculateAuctionValue,
   calculateBlockFillAndPercent,
   scaleAuction,
 } from '../src/auction';
-import { Keypair } from '@stellar/stellar-sdk';
-import { RequestType } from '@blend-capital/blend-sdk';
+import {
+  AuctionBid,
+  BidderSubmissionType,
+  BidderSubmitter,
+  FillerUnwind,
+} from '../src/bidder_submitter';
+import { AuctioneerDatabase, AuctionEntry, AuctionType } from '../src/utils/db';
+import { logger } from '../src/utils/logger';
 import { sendSlackNotification } from '../src/utils/slack_notifier';
+import { SorobanHelper } from '../src/utils/soroban_helper';
+import { inMemoryAuctioneerDb } from './helpers/mocks';
 
 // Mock dependencies
 jest.mock('../src/utils/db');
@@ -229,7 +229,7 @@ describe('BidderSubmitter', () => {
 
     await bidderSubmitter.onDrop(submission);
 
-    expect(mockDb.deleteAuctionEntry).toHaveBeenCalledWith('test-user', AuctionType.Liquidation);
+    expect(mockDb.deleteAuctionEntry).toHaveBeenCalledTimes(0);
     expect(logger.error).toHaveBeenCalledWith(
       `Dropped auction bid\n` +
         `Type: ${AuctionType[submission.auctionEntry.auction_type]}\n` +
