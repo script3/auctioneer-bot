@@ -1,32 +1,42 @@
 {
-    "rpcURL": "https://example.com/rpc",
-    "networkPassphrase": "example-network-passphrase",
+    "name": "Example Bot",
+    "rpcURL": "http://localhost:8000",
+    "networkPassphrase": "Public Global Stellar Network ; September 2015",
     "poolAddress": "C...",
-    "backstopAddress": "C...",
-    "backstopTokenAddress": "C...",
-    "usdcAddress": "C...",
-    "blndAddress": "C...",
-    "auctioneers": [
+    "backstopAddress": "CAO3AGAMZVRMHITL36EJ2VZQWKYRPWMQAPDQD5YEOF3GIF7T44U4JAL3",
+    "backstopTokenAddress": "CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM",
+    "usdcAddress": "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+    "blndAddress": "CD25MNVTZDL4Y3XBCPCJXGXATV5WUHHOWMYFF4YBEGU5FCPGMYTVG5JY",
+    "keypair": "S...",
+    "fillers": [
         {
-            "secret": "example-secret",
-            "minProfitPct": 0.05,
-            "minHealthFactor": 0.8,
+            "name": "example-liquidator",
+            "keypair": "S...",
+            "minProfitPct": 0.10,
+            "minHealthFactor": 1.5,
             "forceFill": true,
-            "supportedBid": ["bid1", "bid2"],
-            "supportedLot": ["lot1", "lot2"]
-        }
+            "supportedBid": [
+                "CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM",
+                "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+                "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA"
+            ],
+            "supportedLot": [
+                "CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM",
+                "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+                "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA"
+            ]
+        }    
     ],
     "priceSources": [
         {
-            "assetId": "C...",
+            "assetId": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
             "type": "coinbase",
-            "symbol": "ETH-USD"
+            "symbol": "XLM-USD"
         },
         {
-            "assetId": "C...",
+            "assetId": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
             "type": "binance",
-            "symbol": "BTCUSDT"
+            "symbol": "XLMUSDT"
         }
-    ],
-    "slackWebhook": "https://example.com/slack-webhook"
+    ]
 }
