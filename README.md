@@ -16,10 +16,11 @@ It is recommended to run the auctioneer bot as a docker container. The image can
 docker pull script3/auctioneer-bot:latest
 ```
 
-To run the container, you will need to provide a volume mount from the host to `/app/data` with a config file named `config.json` at the root of the volume. Please see [Configuration](#configuration) for documentation of the configuration file.
+To run the container, you will need to mount a directory from the host to `/app/data` on the container. The directory must contain a config file named `config.json` at its root. Please see [Configuration](#configuration) for details on the configuration file.
 
-The container will create a sqlite3 database that tracks bot activity and log files outputted by the bot in the mounted volume.
+The container will create a sqlite3 database that tracks bot activity and log files in the mounted directory.
 
+Use the following command to run the container:
 ```bash
 docker run --restart always -d -v /path/on/host:/app/data script3/auctioneer-bot:latest
 ```
