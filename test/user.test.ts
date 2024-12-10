@@ -79,7 +79,7 @@ describe('updateUser', () => {
   });
 });
 
-describe('getUsersWithBorrows', () => {
+describe('addUsersWithBorrows', () => {
   let db: AuctioneerDatabase;
   let mockedSorobanHelper: jest.Mocked<SorobanHelper>;
   let mockedDuneClientConstructor: jest.MockedClass<typeof DuneClient>;
