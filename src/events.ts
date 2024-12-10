@@ -8,6 +8,7 @@ export enum EventType {
   POOL_EVENT = 'pool_event',
   USER_REFRESH = 'user_refresh',
   CHECK_USER = 'check_user',
+  USER_CATCHUP = 'user_catchup',
 }
 
 // ********* Shared **********
@@ -19,7 +20,8 @@ export type AppEvent =
   | LiqScanEvent
   | PoolEventEvent
   | UserRefreshEvent
-  | CheckUserEvent;
+  | CheckUserEvent
+  | UserCatchupEvent;
 
 /**
  * Base interface for all events.
@@ -88,4 +90,11 @@ export interface CheckUserEvent extends BaseEvent {
    * The user to check.
    */
   userId: string;
+}
+
+/**
+ * Event to catch up on user borrows.
+ */
+export interface UserCatchupEvent extends BaseEvent {
+  type: EventType.USER_CATCHUP;
 }

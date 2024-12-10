@@ -40,6 +40,7 @@ export interface AppConfig {
   priceSources: PriceSource[] | undefined;
   profits: AuctionProfit[] | undefined;
   slackWebhook: string | undefined;
+  duneApiKey: string | undefined;
 }
 
 let APP_CONFIG: AppConfig;
@@ -70,7 +71,8 @@ export function validateAppConfig(config: any): boolean {
     !Array.isArray(config.fillers) ||
     (config.priceSources !== undefined && !Array.isArray(config.priceSources)) ||
     (config.profits !== undefined && !Array.isArray(config.profits)) ||
-    (config.slackWebhook !== undefined && typeof config.slackWebhook !== 'string')
+    (config.slackWebhook !== undefined && typeof config.slackWebhook !== 'string') ||
+    (config.duneApiKey !== undefined && typeof config.duneApiKey !== 'string')
   ) {
     console.log('Invalid app config');
     return false;

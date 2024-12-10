@@ -1,7 +1,7 @@
 import { AppEvent, EventType } from './events.js';
 import { checkUsersForLiquidationsAndBadDebt, scanUsers } from './liquidations.js';
 import { OracleHistory } from './oracle_history.js';
-import { updateUser } from './user.js';
+import { addUsersWithBorrows, updateUser } from './user.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
@@ -130,6 +130,11 @@ export class WorkHandler {
         for (const submission of submissions) {
           this.submissionQueue.addSubmission(submission, 3);
         }
+        break;
+      }
+      case EventType.USER_CATCHUP: {
+        await addUsersWithBorrows(this.db, this.sorobanHelper);
+        break;
       }
       default:
         logger.error(`Unhandled event type: ${appEvent.type}`);

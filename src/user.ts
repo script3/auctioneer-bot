@@ -1,6 +1,9 @@
 import { Pool, PoolUser, PositionsEstimate } from '@blend-capital/blend-sdk';
 import { AuctioneerDatabase, UserEntry } from './utils/db.js';
 import { logger } from './utils/logger.js';
+import { APP_CONFIG } from './utils/config.js';
+import { SorobanHelper } from './utils/soroban_helper.js';
+import { DuneClient, ParameterType } from '@duneanalytics/client-sdk';
 
 /**
  * Update a user in the database
@@ -58,5 +61,57 @@ export function updateUser(
     logger.info(
       `Deleted user entry for ${user.userId} at ledger ${ledger}, no liabilities remaining.`
     );
+  }
+}
+
+/**
+ * Query dune for all borrows and add users with borrows to the database
+ * @param db - The database
+ * @param sorobanHelper - The soroban helper used for retrieving user positions
+ */
+export async function addUsersWithBorrows(db: AuctioneerDatabase, sorobanHelper: SorobanHelper) {
+  try {
+    if (APP_CONFIG.duneApiKey === undefined) {
+      throw new Error('Dune API key not set.');
+    }
+
+    const duneClient = new DuneClient(APP_CONFIG.duneApiKey);
+    let query_result = await duneClient.getLatestResult({
+      queryId: 4370781,
+      query_parameters: [
+        {
+          type: ParameterType.TEXT,
+          value: APP_CONFIG.poolAddress,
+          name: 'pool_id',
+        },
+      ],
+    });
+
+    const currLedger = await sorobanHelper.loadLatestLedger();
+    const nextLedger = currLedger + 1;
+    const borrowUsers: string[] = (query_result.result?.rows ?? []).map(
+      (row) => row.wallet as string
+    );
+
+    const currentUsers = db.getUserEntriesUpdatedBefore(nextLedger).map((entry) => entry.user_id);
+    const missingUsers = borrowUsers.filter((user) => !currentUsers.includes(user));
+    let usersAdded = 0;
+    for (const user of missingUsers) {
+      const { estimate: userPositionsEstimate, user: userPositions } =
+        await sorobanHelper.loadUserPositionEstimate(user);
+      if (userPositionsEstimate.totalEffectiveLiabilities > 0) {
+        updateUser(
+          db,
+          await sorobanHelper.loadPool(),
+          userPositions,
+          userPositionsEstimate,
+          currLedger
+        );
+        usersAdded++;
+      }
+    }
+    logger.info(`Added ${usersAdded} users with borrows to the database.`);
+  } catch (e) {
+    logger.error(`Error catching up users with borrows: ${e}`);
   }
 }

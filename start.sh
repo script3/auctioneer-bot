@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Initialize variables
+CATCHUP=false
+
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --catchup) CATCHUP=true ;;
+    *) echo "Unknown parameter passed: $1"; exit 1 ;;
+  esac
+  shift
+done
+
 # Log versions of container
 echo "Node version: $(node -v)"
 echo "NPM version: $(npm -v)"
@@ -28,5 +40,5 @@ echo "Setup complete."
 
 echo "Starting auctioneer..."
 
-# Start the app
-node ./lib/main.js
+# Start the app with optional --catchup flag
+exec node --trace-deprecation ./lib/main.js $([ "$CATCHUP" = true ] && echo "--catchup")

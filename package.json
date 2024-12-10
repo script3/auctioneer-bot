@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@blend-capital/blend-sdk": "2.2.0",
+    "@duneanalytics/client-sdk": "^0.2.4",
     "@stellar/stellar-sdk": "13.0.0",
     "better-sqlite3": "^11.1.2",
     "winston": "^3.13.1",

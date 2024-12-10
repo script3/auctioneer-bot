@@ -14,7 +14,7 @@ describe('validateAppConfig', () => {
   });
 
   it('should return false for config with missing or incorrect properties', () => {
-    const invalidConfig = {
+    let invalidConfig: any = {
       name: 'App',
       rpcURL: 'http://localhost',
       networkPassphrase: 'Test',
@@ -26,9 +26,63 @@ describe('validateAppConfig', () => {
       keypair: 'secret',
       fillers: [],
       priceSources: [],
-      slackWebhook: 123, // Invalid type
+      slackWebhook: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+      duneApiKey: 'key',
     };
+
+    // Test each field for incorrect type
+    invalidConfig.name = 123;
     expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.name = 'App'; // Reset to valid value
+
+    invalidConfig.rpcURL = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.rpcURL = 'http://localhost';
+
+    invalidConfig.networkPassphrase = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.networkPassphrase = 'Test';
+
+    invalidConfig.poolAddress = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.poolAddress = 'pool';
+
+    invalidConfig.backstopAddress = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.backstopAddress = 'backstop';
+
+    invalidConfig.backstopTokenAddress = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.backstopTokenAddress = 'token';
+
+    invalidConfig.usdcAddress = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.usdcAddress = 'usdc';
+
+    invalidConfig.blndAddress = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.blndAddress = 'blnd';
+
+    invalidConfig.keypair = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.keypair = Keypair.random().secret();
+
+    invalidConfig.fillers = 'not an array';
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.fillers = [];
+
+    invalidConfig.priceSources = 'not an array';
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.priceSources = [];
+
+    invalidConfig.slackWebhook = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.slackWebhook =
+      'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX';
+
+    invalidConfig.duneApiKey = 123;
+    expect(validateAppConfig(invalidConfig)).toBe(false);
+    invalidConfig.duneApiKey = 'key';
   });
 
   it('should return true for valid config', () => {
@@ -57,6 +111,7 @@ describe('validateAppConfig', () => {
       ],
       priceSources: [{ assetId: 'asset', type: 'binance', symbol: 'symbol' }],
       slackWebhook: 'http://webhook',
+      duneApiKey: 'key',
     };
     expect(validateAppConfig(validConfig)).toBe(true);
   });

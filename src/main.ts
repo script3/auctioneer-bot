@@ -1,13 +1,21 @@
 import { rpc } from '@stellar/stellar-sdk';
 import { fork } from 'child_process';
 import { runCollector } from './collector.js';
-import { EventType, OracleScanEvent, PriceUpdateEvent, UserRefreshEvent } from './events.js';
+import {
+  EventType,
+  OracleScanEvent,
+  PriceUpdateEvent,
+  UserCatchupEvent,
+  UserRefreshEvent,
+} from './events.js';
 import { PoolEventHandler } from './pool_event_handler.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
+
+const CATCHUP = process.argv[2] !== undefined && process.argv[2] === '--catchup';
 
 async function main() {
   // spawn child processes
@@ -74,6 +82,17 @@ async function main() {
 
   console.log('Auctioneer started successfully.');
 
+  if (CATCHUP) {
+    if (APP_CONFIG.duneApiKey === undefined) {
+      console.error('Dune API key is required for catchup');
+      shutdown();
+    }
+    const catchupEvent: UserCatchupEvent = {
+      type: EventType.USER_CATCHUP,
+      timestamp: Date.now(),
+    };
+    sendEvent(worker, catchupEvent);
+  }
   // update price on startup
   const priveEvent: PriceUpdateEvent = {
     type: EventType.PRICE_UPDATE,
