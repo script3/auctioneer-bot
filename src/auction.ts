@@ -30,7 +30,6 @@ export interface AuctionFill {
 export interface AuctionValue {
   effectiveCollateral: number;
   effectiveLiabilities: number;
-  repayableLiabilities: number;
   lotValue: number;
   bidValue: number;
 }
@@ -350,7 +349,6 @@ export async function calculateAuctionValue(
   let effectiveCollateral = 0;
   let lotValue = 0;
   let effectiveLiabilities = 0;
-  let repayableLiabilities = 0;
   let bidValue = 0;
   const reserves = pool.reserves;
   for (const [assetId, amount] of auction.data.lot) {
@@ -408,7 +406,7 @@ export async function calculateAuctionValue(
     }
   }
 
-  return { effectiveCollateral, effectiveLiabilities, repayableLiabilities, lotValue, bidValue };
+  return { effectiveCollateral, effectiveLiabilities, lotValue, bidValue };
 }
 
 /**

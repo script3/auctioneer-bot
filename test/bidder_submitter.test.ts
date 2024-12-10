@@ -7,7 +7,7 @@ import {
   BidderSubmitter,
   FillerUnwind,
 } from '../src/bidder_submitter';
-import { managePositions } from '../src/filler';
+import { getFillerAvailableBalances, managePositions } from '../src/filler';
 import { Filler } from '../src/utils/config';
 import { AuctioneerDatabase, AuctionEntry, AuctionType, FilledAuctionEntry } from '../src/utils/db';
 import { logger } from '../src/utils/logger';
@@ -78,6 +78,9 @@ describe('BidderSubmitter', () => {
     typeof calculateAuctionFill
   >;
   const mockedManagePositions = managePositions as jest.MockedFunction<typeof managePositions>;
+  const mockedGetFilledAvailableBalances = getFillerAvailableBalances as jest.MockedFunction<
+    typeof getFillerAvailableBalances
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -231,9 +234,10 @@ describe('BidderSubmitter', () => {
     let result = await bidderSubmitter.submit(submission);
 
     expect(result).toBe(true);
-    expect(mockedSorobanHelper.loadBalances).toHaveBeenCalledWith(
-      submission.filler.keypair.publicKey(),
-      ['USD', 'XLM', 'EURC']
+    expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith(
+      submission.filler,
+      ['USD', 'XLM', 'EURC'],
+      mockedSorobanHelper
     );
     expect(mockedManagePositions).toHaveBeenCalled();
     expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalled();
@@ -271,9 +275,10 @@ describe('BidderSubmitter', () => {
     let result = await bidderSubmitter.submit(submission);
 
     expect(result).toBe(true);
-    expect(mockedSorobanHelper.loadBalances).toHaveBeenCalledWith(
-      submission.filler.keypair.publicKey(),
-      ['USD', 'XLM', 'EURC']
+    expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith(
+      submission.filler,
+      ['USD', 'XLM', 'EURC'],
+      mockedSorobanHelper
     );
     expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalledTimes(0);
     expect(bidderSubmitter.addSubmission).toHaveBeenCalledTimes(0);

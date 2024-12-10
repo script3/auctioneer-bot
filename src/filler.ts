@@ -97,7 +97,8 @@ export async function getFillerAvailableBalances(
  * @param pool - The pool
  * @param poolOracle - The pool's oracle object
  * @param poolUser - The filler's pool user object
- * @param balances - The filler's balances
+ * @param balances - The filler's balances. This should be fetched from `getFillerAvailableBalances` to ensure
+ *                   minimum balances are respected.
  * @returns An array of requests to be submitted to the network, or an empty array if no actions are required
  */
 export function managePositions(
@@ -125,13 +126,7 @@ export function managePositions(
     }
     // if no price is found, assume 0, so effective liabilities won't change
     const oraclePrice = poolOracle.getPriceFloat(reserve.assetId) ?? 0;
-    const isNative = reserve.assetId === Asset.native().contractId(APP_CONFIG.networkPassphrase);
     let tokenBalance = balances.get(reserve.assetId) ?? 0n;
-    // require that at least 50 XLM is left in the wallet
-    if (isNative) {
-      tokenBalance =
-        tokenBalance > FixedMath.toFixed(50, 7) ? tokenBalance - FixedMath.toFixed(50, 7) : 0n;
-    }
     if (tokenBalance > 0n) {
       const balanceAsDTokens = reserve.toDTokensFromAssetFloor(tokenBalance);
       const repaidLiability = balanceAsDTokens <= amount ? balanceAsDTokens : amount;

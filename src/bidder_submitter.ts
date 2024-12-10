@@ -1,7 +1,7 @@
 import { PoolContract } from '@blend-capital/blend-sdk';
 import { rpc } from '@stellar/stellar-sdk';
 import { calculateAuctionFill } from './auction.js';
-import { managePositions } from './filler.js';
+import { getFillerAvailableBalances, managePositions } from './filler.js';
 import { APP_CONFIG, Filler } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { serializeError, stringify } from './utils/json.js';
@@ -165,7 +165,11 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
     const pool = await sorobanHelper.loadPool();
     const poolOracle = await sorobanHelper.loadPoolOracle();
     const filler_user = await sorobanHelper.loadUser(filler_pubkey);
-    const filler_balances = await sorobanHelper.loadBalances(filler_pubkey, filler_tokens);
+    const filler_balances = await getFillerAvailableBalances(
+      fillerUnwind.filler,
+      filler_tokens,
+      sorobanHelper
+    );
 
     // Unwind the filler one step at a time. If the filler is not unwound, place another `FillerUnwind` event on the submission queue.
     // To unwind the filler, the following actions will be taken in order:

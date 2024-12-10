@@ -431,33 +431,6 @@ describe('filler', () => {
       expect(requests).toEqual(expectedRequests);
     });
 
-    it('keeps XLM balance above min XLM', () => {
-      const positions = new Positions(
-        // dTokens
-        new Map<number, bigint>([[0, FixedMath.toFixed(200, 7)]]),
-        // bTokens
-        new Map<number, bigint>([[1, FixedMath.toFixed(125, 7)]]),
-        new Map<number, bigint>([])
-      );
-      const balances = new Map<string, bigint>([
-        [assets[0], FixedMath.toFixed(75, 7)],
-        [assets[1], FixedMath.toFixed(3000, 7)],
-        [assets[2], FixedMath.toFixed(1000, 7)],
-        [assets[3], FixedMath.toFixed(0, 7)],
-      ]);
-
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
-
-      const expectedRequests: Request[] = [
-        {
-          request_type: RequestType.Repay,
-          address: assets[0],
-          amount: FixedMath.toFixed(25, 7),
-        },
-      ];
-      expect(requests).toEqual(expectedRequests);
-    });
-
     it('clears collateral with no liabilities and keeps primary collateral above min collateral', () => {
       const positions = new Positions(
         // dTokens
@@ -520,7 +493,7 @@ describe('filler', () => {
         {
           request_type: RequestType.Repay,
           address: assets[0],
-          amount: FixedMath.toFixed(4950, 7),
+          amount: FixedMath.toFixed(5000, 7),
         },
         {
           request_type: RequestType.Repay,
