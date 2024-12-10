@@ -56,7 +56,7 @@ For an example config file that is configured to interact with [Blend v1 mainnet
 | `priceSources` | (Optional) A list of assets that will have prices sourced from exchanges instead of the pool oracle. |
 | `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions.
 | `slackWebhook` | (Optional) A slack webhook URL to post updates to (https://hooks.slack.com/services/). Leave undefined if no webhooks are required. |
-
+| `duneApiKey` | (Optional) A dune api for catchup functionality |
 #### Fillers
 
 The `fillers` array contains configurations for individual filler accounts. The account chosen to fill an auction is the first filler in the list that supports all bid and lot assets in the auction. Each filler has the following properties:
@@ -100,6 +100,12 @@ Each profit entry has the following fields:
 | `profitPct` | The profit percentage required to bid for the auction, as a decimal. (e.g. 0.08 = 8%) |
 | `supportedBid` | An array of asset addresses that the auction bid can contain for this `profitPct` to be used. If any auction bid asset exists outside this list, the `profitPct` will not be used. |
 | `supportedLot` | An array of asset addresses that the auction lot can contain for this `profitPct` to be used. If any auction lot asset exists outside this list, the `profitPct` will not be used. |
+
+#### Optional Flags
+
+| Flag | Description |
+|-------|-------------|
+| `--catchup` | Updates the users in the database with all current borrowers in the pool. A dune api key is required in the config for this feature |
 
 ## Build
 
