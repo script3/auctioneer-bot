@@ -65,6 +65,7 @@ export interface AppConfig {
   priceSources: PriceSource[] | undefined;
   profits: AuctionProfit[] | undefined;
   slackWebhook: string | undefined;
+  discordWebhook: string | undefined;
   highBaseFee: number | undefined;
   baseFee: number | undefined;
 }
@@ -99,6 +100,7 @@ export function validateAppConfig(config: any): boolean {
     (config.priceSources !== undefined && !Array.isArray(config.priceSources)) ||
     (config.profits !== undefined && !Array.isArray(config.profits)) ||
     (config.slackWebhook !== undefined && typeof config.slackWebhook !== 'string') ||
+    (config.discordWebhook !== undefined && typeof config.discordWebhook !== 'string') ||
     (config.highBaseFee !== undefined && typeof config.highBaseFee !== 'number') ||
     (config.baseFee !== undefined && typeof config.baseFee !== 'number')
   ) {

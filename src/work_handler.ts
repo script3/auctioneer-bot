@@ -8,7 +8,7 @@ import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
+import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmissionType, WorkSubmitter } from './work_submitter.js';
 import { canFillerBid, checkFillerSupport, getFillerAvailableBalances } from './filler.js';
@@ -154,7 +154,7 @@ export class WorkHandler {
                     `Pool: ${poolId}\n` +
                     `User: ${user.user_id}`;
                   logger.error(logMessage);
-                  await sendSlackNotification(logMessage);
+                  await sendNotification(logMessage);
                 }
 
                 const { estimate: poolUserEstimate, user: poolUser } =

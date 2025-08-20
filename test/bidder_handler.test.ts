@@ -12,7 +12,7 @@ import { AppEvent, EventType, LedgerEvent } from '../src/events';
 import { APP_CONFIG, AppConfig } from '../src/utils/config';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from '../src/utils/db';
 import { logger } from '../src/utils/logger';
-import { sendSlackNotification } from '../src/utils/slack_notifier';
+import { sendNotification } from '../src/utils/notifier';
 import { SorobanHelper } from '../src/utils/soroban_helper';
 import { inMemoryAuctioneerDb } from './helpers/mocks';
 
@@ -84,7 +84,7 @@ jest.mock('../src/liquidations');
 jest.mock('../src/utils/soroban_helper');
 jest.mock('../src/bidder_submitter');
 jest.mock('../src/auction');
-jest.mock('../src/utils/slack_notifier');
+jest.mock('../src/utils/notifier');
 
 describe('BidderHandler', () => {
   let bidderHandler: BidderHandler;
@@ -95,8 +95,8 @@ describe('BidderHandler', () => {
   let mockedCalcAuctionFill = calculateAuctionFill as jest.MockedFunction<
     typeof calculateAuctionFill
   >;
-  let mockedSendSlackNotif = sendSlackNotification as jest.MockedFunction<
-    typeof sendSlackNotification
+  let mockedSendSlackNotif = sendNotification as jest.MockedFunction<
+    typeof sendNotification
   >;
 
   beforeEach(() => {

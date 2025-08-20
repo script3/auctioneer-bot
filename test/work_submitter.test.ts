@@ -3,7 +3,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import { AppConfig } from '../src/utils/config';
 import { AuctionType } from '../src/utils/db';
 import { logger } from '../src/utils/logger';
-import { sendSlackNotification } from '../src/utils/slack_notifier';
+import { sendNotification } from '../src/utils/notifier';
 import { SorobanHelper } from '../src/utils/soroban_helper';
 import { WorkSubmission, WorkSubmissionType, WorkSubmitter } from '../src/work_submitter';
 import { mockPool } from './helpers/mocks';
@@ -12,7 +12,7 @@ import { serializeError, stringify } from '../src/utils/json';
 // Mock dependencies
 jest.mock('../src/utils/db');
 jest.mock('../src/utils/soroban_helper');
-jest.mock('../src/utils/slack_notifier');
+jest.mock('../src/utils/notifier');
 jest.mock('../src/utils/logger');
 jest.mock('../src/utils/logger.js', () => ({
   logger: {
@@ -33,8 +33,8 @@ describe('WorkSubmitter', () => {
 
   let mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
   let mockedSorobanHelperConstructor = SorobanHelper as jest.MockedClass<typeof SorobanHelper>;
-  const mockedSendSlackNotif = sendSlackNotification as jest.MockedFunction<
-    typeof sendSlackNotification
+  const mockedSendSlackNotif = sendNotification as jest.MockedFunction<
+    typeof sendNotification
   >;
 
   beforeEach(() => {
@@ -256,7 +256,7 @@ describe('WorkSubmitter', () => {
     expect(result).toBe(true);
     expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalled();
-    expect(sendSlackNotification).toHaveBeenCalled();
+    expect(sendNotification).toHaveBeenCalled();
   });
 
   it('should submit a bad debt auction successfully', async () => {
@@ -276,7 +276,7 @@ describe('WorkSubmitter', () => {
     expect(result).toBe(true);
     expect(mockedSorobanHelper.submitTransaction).toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalled();
-    expect(sendSlackNotification).toHaveBeenCalled();
+    expect(sendNotification).toHaveBeenCalled();
   });
 
   it('should not submit if auction already exists', async () => {

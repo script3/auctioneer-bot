@@ -8,7 +8,7 @@ import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent, sendEvent } from './utils/messages.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
+import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission } from './work_submitter.js';
 const MAX_RETRIES = 2;
@@ -113,7 +113,7 @@ export class PoolEventHandler {
             `Pool: ${poolId}\n` +
             `User: ${poolEvent.event.user}\n` +
             `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
-          await sendSlackNotification(logMessage);
+          await sendNotification(logMessage);
           logger.info(logMessage);
           fillerFound = true;
           break;
@@ -125,7 +125,7 @@ export class PoolEventHandler {
             `Pool: ${poolId}\n` +
             `User: ${poolEvent.event.user}\n` +
             `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
-          await sendSlackNotification(logMessage);
+          await sendNotification(logMessage);
           logger.info(logMessage);
         }
         break;
@@ -142,7 +142,7 @@ export class PoolEventHandler {
             `Liquidation Auction Deleted\n` +
             `Pool: ${poolId}\n` +
             `User: ${poolEvent.event.user}\n`;
-          await sendSlackNotification(logMessage);
+          await sendNotification(logMessage);
           logger.info(logMessage);
         }
         break;
@@ -157,7 +157,7 @@ export class PoolEventHandler {
           `User: ${poolEvent.event.user}\n` +
           `Fill Percent: ${poolEvent.event.fillAmount}\n` +
           `Tx Hash: ${poolEvent.event.txHash}\n`;
-        await sendSlackNotification(logMessage);
+        await sendNotification(logMessage);
         logger.info(logMessage);
         if (poolEvent.event.fillAmount === BigInt(100)) {
           // auction was fully filled, remove from ongoing auctions
@@ -219,7 +219,7 @@ export class PoolEventHandler {
             `Type: ${AuctionType[auctionType]}\n` +
             `Pool: ${poolId}\n` +
             `User: ${user}`;
-          await sendSlackNotification(logMessage);
+          await sendNotification(logMessage);
           logger.info(logMessage);
         }
       }

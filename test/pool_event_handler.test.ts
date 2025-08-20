@@ -20,7 +20,7 @@ import { inMemoryAuctioneerDb, mockPool } from './helpers/mocks.js';
 
 jest.mock('../src/user.js');
 jest.mock('../src/utils/soroban_helper.js');
-jest.mock('../src/utils/slack_notifier.js');
+jest.mock('../src/utils/notifier');
 jest.mock('../src/utils/messages');
 jest.mock('../src/utils/logger.js', () => ({
   logger: {

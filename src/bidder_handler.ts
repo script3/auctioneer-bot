@@ -10,7 +10,7 @@ import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
+import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 
 export class BidderHandler {
@@ -104,7 +104,7 @@ export class BidderHandler {
                   `Fill: ${stringify(fill, 2)}\n` +
                   `Ledgers To Fill In: ${fill.block - nextLedger}\n`;
                 if (auctionEntry.fill_block === 0) {
-                  await sendSlackNotification(logMessage);
+                  await sendNotification(logMessage);
                 }
                 logger.info(logMessage);
                 auctionEntry.fill_block = fill.block;

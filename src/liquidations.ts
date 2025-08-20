@@ -5,7 +5,7 @@ import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission, WorkSubmissionType } from './work_submitter.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
+import { sendNotification } from './utils/notifier.js';
 import { stringify } from './utils/json.js';
 
 /**
@@ -324,7 +324,7 @@ export async function checkUsersForLiquidationsAndBadDebt(
         `User: ${user}\n` +
         `Error: ${e}`;
       logger.error(errorLog);
-      sendSlackNotification(errorLog);
+      sendNotification(errorLog);
     }
   }
   return submissions;

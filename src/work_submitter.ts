@@ -3,7 +3,7 @@ import { APP_CONFIG, Filler } from './utils/config.js';
 import { AuctionType } from './utils/db.js';
 import { serializeError, stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
-import { sendSlackNotification } from './utils/slack_notifier.js';
+import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
 import { Address, Contract, nativeToScVal } from '@stellar/stellar-sdk';
@@ -90,7 +90,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `Lot: ${stringify(auction.lot)}\n`;
 
       logger.info(logMessage);
-      await sendSlackNotification(logMessage);
+      await sendNotification(logMessage);
       return true;
     } catch (e: any) {
       const logMessage =
@@ -103,7 +103,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `Lot: ${stringify(auction.lot)}\n` +
         `Error: ${stringify(serializeError(e))}\n`;
       logger.error(logMessage);
-      await sendSlackNotification(`<!channel>\n` + logMessage);
+      await sendNotification(logMessage, true);
 
       // if pool throws a "LIQ_TOO_SMALL" or "LIQ_TOO_LARGE" error, adjust the fill percentage
       // by 1 percentage point before retrying.
@@ -133,7 +133,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `Successfully transferred bad debt to backstop\n` +
         `Pool: ${badDebtTransfer.poolId}\n` +
         `User: ${badDebtTransfer.user}`;
-      await sendSlackNotification(logMessage);
+      await sendNotification(logMessage);
       logger.info(logMessage);
       return true;
     } catch (e: any) {
@@ -143,7 +143,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `User: ${badDebtTransfer.user}` +
         `Error: ${stringify(serializeError(e))}\n`;
       logger.error(logMessage);
-      await sendSlackNotification(`<!channel> ` + logMessage);
+      await sendNotification(logMessage, true);
       return false;
     }
   }
@@ -167,6 +167,6 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         break;
     }
     logger.error(logMessage);
-    await sendSlackNotification(logMessage);
+    await sendNotification(logMessage);
   }
 }

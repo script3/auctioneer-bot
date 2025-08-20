@@ -19,7 +19,7 @@ import { getFillerAvailableBalances, managePositions } from '../src/filler';
 import { APP_CONFIG, Filler } from '../src/utils/config';
 import { AuctioneerDatabase, AuctionEntry, AuctionType, FilledAuctionEntry } from '../src/utils/db';
 import { logger } from '../src/utils/logger';
-import { sendSlackNotification } from '../src/utils/slack_notifier';
+import { sendNotification } from '../src/utils/notifier';
 import { SorobanHelper } from '../src/utils/soroban_helper';
 import { inMemoryAuctioneerDb, mockPool, mockPoolOracle } from './helpers/mocks';
 import { stringify } from '../src/utils/json';
@@ -28,7 +28,7 @@ import { stringify } from '../src/utils/json';
 jest.mock('../src/utils/db');
 jest.mock('../src/utils/soroban_helper');
 jest.mock('../src/auction');
-jest.mock('../src/utils/slack_notifier');
+jest.mock('../src/utils/notifier');
 jest.mock('../src/filler');
 jest.mock('../src/utils/soroban_helper');
 jest.mock('@stellar/stellar-sdk', () => {
@@ -79,8 +79,8 @@ describe('BidderSubmitter', () => {
   };
   mockedSorobanHelperConstructor.mockReturnValue(mockedSorobanHelper);
 
-  const mockedSendSlackNotif = sendSlackNotification as jest.MockedFunction<
-    typeof sendSlackNotification
+  const mockedSendSlackNotif = sendNotification as jest.MockedFunction<
+    typeof sendNotification
   >;
   const mockedCalcAuctionFill = calculateAuctionFill as jest.MockedFunction<
     typeof calculateAuctionFill

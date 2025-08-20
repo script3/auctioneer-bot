@@ -66,6 +66,8 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `priceSources` | (Optional) A list of assets that will have prices sourced from exchanges instead of the pool oracle. |
 | `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions.
 | `slackWebhook` | (Optional) A slack webhook URL to post updates to (https://hooks.slack.com/services/). Leave undefined if no webhooks are required. |
+| `discordWebhook` | (Optional) A Discord webhook URL to post updates to. Leave undefined if no webhooks are required. |
+
 
 #### Fillers
 
