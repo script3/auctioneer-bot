@@ -1,6 +1,6 @@
 {
   "name": "auctioneer-bot",
-  "version": "2.0.1-beta",
+  "version": "2.1.0-beta",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -25,8 +25,8 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "@blend-capital/blend-sdk": "3.0.1",
-    "@stellar/stellar-sdk": "13.2.0",
+    "@blend-capital/blend-sdk": "3.2.1",
+    "@stellar/stellar-sdk": "14.1.1",
     "better-sqlite3": "^11.1.2",
     "winston": "^3.13.1",
     "winston-daily-rotate-file": "^5.0.0"

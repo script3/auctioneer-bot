@@ -134,7 +134,6 @@ export async function runCollector(
         throw e;
       }
     }
-    let cursor = '';
     while (events.events.length > 0) {
       for (const raw_event of events.events) {
         let blendPoolEvent = poolEventV2FromEventResponse(raw_event);
@@ -149,12 +148,15 @@ export async function runCollector(
           await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
         }
       }
-      cursor = events.events[events.events.length - 1].pagingToken;
-      events = await stellarRpc._getEvents({
-        cursor: cursor,
-        filters: filters,
-        limit: 100,
-      });
+      if (events.cursor != undefined && events.cursor !== '') {
+        events = await stellarRpc._getEvents({
+          cursor: events.cursor,
+          filters: filters,
+          limit: 100,
+        });
+      } else {
+        logger.info('No valid cursor detected:', events.cursor);
+      }
     }
     statusEntry.latest_ledger = latestLedger;
 
