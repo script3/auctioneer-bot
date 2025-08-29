@@ -1,6 +1,6 @@
 # Auctioneer Bot
 
-The auctioneer bot monitors Blend V1 pools to create and bid on auctions. This includes user liquidation auctions, bad debt auctions, and interest auctions. The auctioneer focuses on completeness and pool safety over profit, but the existing code can be modified to meet any use case.
+The auctioneer bot monitors Blend V2 pools to create and bid on auctions. This includes user liquidation auctions, bad debt auctions, and interest auctions. The auctioneer focuses on completeness and pool safety over profit, but the existing code can be modified to meet any use case.
 
 For more information please see [the Blend docs](https://docs.blend.capital/tech-docs/core-contracts/lending-pool).
 
@@ -33,7 +33,7 @@ Auctions filled by the bot will have an entry populated in the `filled_auctions`
 
 ## Important Info
 
-This version only support V1 Blend pools.
+This version only support V2 Blend pools.
 
 This bot does not automatically unwind all positions it bids on. It is recommended to manually adjust your positions as necessary as auctions get filled. 
 
@@ -41,7 +41,7 @@ Certain auctions cause your filler to take on liabilities, and if these assets a
 
 ### Configuration
 
-For an example config file that is configured to interact with [Blend v1 mainnet protocol](https://docs.blend.capital/), please see [example.config.json](https://github.com/script3/auctioneer-bot/blob/main/example.config.json).
+For an example config file that is configured to interact with [Blend 2 mainnet protocol](https://docs.blend.capital/), please see [example.config.json](https://github.com/script3/auctioneer-bot/blob/main/example.config.json).
 
 ### Database Migration
 
