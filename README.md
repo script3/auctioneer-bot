@@ -67,6 +67,7 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions.
 | `slackWebhook` | (Optional) A slack webhook URL to post updates to (https://hooks.slack.com/services/). Leave undefined if no webhooks are required. |
 | `discordWebhook` | (Optional) A Discord webhook URL to post updates to. Leave undefined if no webhooks are required. |
+| `interestFillerAddress` | (Optional) A contract address used to help fill interest auctions. |
 
 
 #### Fillers

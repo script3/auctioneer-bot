@@ -9,6 +9,7 @@ import { logger } from './utils/logger.js';
 import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
+import { InterestFillerContract } from './interest_filler.js';
 
 export type BidderSubmission = AuctionBid | FillerUnwind | AddAllowance;
 
@@ -121,21 +122,39 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       if (nextLedger >= fill.block) {
         const pool = new PoolContractV2(auctionBid.auctionEntry.pool_id);
         const est_profit = fill.lotValue - fill.bidValue;
-        // include high inclusion fee if the esimated profit is over $10
+        // include high inclusion fee if the estimated profit is over $10
         if (est_profit > 10) {
           // this object gets recreated every time, so no need to reset the fee level
           sorobanHelper.setFeeLevel('high');
         }
-
-        const result = await sorobanHelper.submitTransaction(
-          pool.submit({
-            from: auctionBid.auctionEntry.filler,
-            spender: auctionBid.auctionEntry.filler,
-            to: auctionBid.auctionEntry.filler,
-            requests: fill.requests,
-          }),
-          auctionBid.filler.keypair
-        );
+        let result;
+        // use the interest auction filler if it exists and the auction is an interest auction
+        if (
+          APP_CONFIG.interestFillerAddress !== undefined &&
+          APP_CONFIG.interestFillerAddress !== '' &&
+          auctionBid.auctionEntry.auction_type == AuctionType.Interest &&
+          fill.percent === 100
+        ) {
+          logger.info(`Using interest auction filler contract ${APP_CONFIG.interestFillerAddress}`);
+          const filler_contract = new InterestFillerContract(APP_CONFIG.interestFillerAddress);
+          result = await sorobanHelper.submitTransaction(
+            filler_contract.fill_interest(
+              auctionBid.auctionEntry.filler,
+              auctionBid.auctionEntry.pool_id
+            ),
+            auctionBid.filler.keypair
+          );
+        } else {
+          result = await sorobanHelper.submitTransaction(
+            pool.submit({
+              from: auctionBid.auctionEntry.filler,
+              spender: auctionBid.auctionEntry.filler,
+              to: auctionBid.auctionEntry.filler,
+              requests: fill.requests,
+            }),
+            auctionBid.filler.keypair
+          );
+        }
         const [scaledAuction] = auction.scale(result.ledger, fill.percent);
         this.db.setFilledAuctionEntry({
           tx_hash: result.txHash,
@@ -174,10 +193,10 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       } else {
         logger.info(
           `Fill ledger not reached for auction bid\n` +
-          `Type: ${auctionBid.auctionEntry.auction_type}\n` +
-          `Pool: ${auctionBid.auctionEntry.pool_id}\n` +
-          `User: ${auctionBid.auctionEntry.user_id}\n` +
-          `Fill Ledger: ${fill.block} Next Ledger: ${nextLedger}`
+            `Type: ${auctionBid.auctionEntry.auction_type}\n` +
+            `Pool: ${auctionBid.auctionEntry.pool_id}\n` +
+            `User: ${auctionBid.auctionEntry.user_id}\n` +
+            `Fill Ledger: ${fill.block} Next Ledger: ${nextLedger}`
         );
       }
       // allow bidder handler to re-process the auction entry
@@ -257,9 +276,9 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       );
       logger.info(
         `Successful unwind for filler: ${fillerUnwind.filler.name}\n` +
-        `Pool: ${fillerUnwind.poolId}\n` +
-        `Ledger: ${result.ledger}\n` +
-        `Hash: ${result.txHash}`
+          `Pool: ${fillerUnwind.poolId}\n` +
+          `Ledger: ${result.ledger}\n` +
+          `Hash: ${result.txHash}`
       );
       this.addSubmission(
         {

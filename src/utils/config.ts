@@ -68,6 +68,7 @@ export interface AppConfig {
   discordWebhook: string | undefined;
   highBaseFee: number | undefined;
   baseFee: number | undefined;
+  interestFillerAddress: string | undefined;
 }
 
 let APP_CONFIG: AppConfig;
@@ -102,7 +103,8 @@ export function validateAppConfig(config: any): boolean {
     (config.slackWebhook !== undefined && typeof config.slackWebhook !== 'string') ||
     (config.discordWebhook !== undefined && typeof config.discordWebhook !== 'string') ||
     (config.highBaseFee !== undefined && typeof config.highBaseFee !== 'number') ||
-    (config.baseFee !== undefined && typeof config.baseFee !== 'number')
+    (config.baseFee !== undefined && typeof config.baseFee !== 'number') ||
+    (config.interestFillerAddress !== undefined && typeof config.interestFillerAddress !== 'string')
   ) {
     console.log('Invalid app config');
     return false;
