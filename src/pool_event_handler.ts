@@ -81,12 +81,32 @@ export class PoolEventHandler {
       case PoolEventType.FlashLoan:
       case PoolEventType.Repay: {
         // update the user in the db
-        const { estimate: userPositionsEstimate, user } =
-          await this.sorobanHelper.loadUserPositionEstimate(poolId, poolEvent.event.from);
-        updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
+        try {
+          const { estimate: userPositionsEstimate, user } =
+            await this.sorobanHelper.loadUserPositionEstimate(poolId, poolEvent.event.from);
+          updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
+        } catch (error) {
+          // if we can't load the user position, ensure they exist in the db
+          // setting `updated` to 0 will update them on the next user_refresh event
+          let userEntry = this.db.getUserEntry(poolId, poolEvent.event.from);
+          if (userEntry === undefined) {
+            userEntry = {
+              pool_id: poolId,
+              user_id: poolEvent.event.from,
+              health_factor: 0,
+              collateral: new Map(),
+              liabilities: new Map(),
+              updated: 0,
+            };
+          }
+          userEntry.updated = 0;
+          this.db.setUserEntry(userEntry);
+          logger.info(
+            `Set user entry for user: ${poolEvent.event.from} in pool: ${poolId} to be refreshed.`
+          );
+        }
         break;
       }
-
       case PoolEventType.NewAuction: {
         // check if the auction should be bid on by an auctioneer
         let fillerFound = false;

@@ -31,8 +31,11 @@ import {
   XLM_ID,
 } from './helpers/mocks.js';
 import { buildAuction } from './helpers/utils.js';
+import { sendNotification } from '../src/utils/notifier.js';
+import { logger } from '../src/utils/logger.js';
 
 jest.mock('../src/utils/soroban_helper.js');
+jest.mock('../src/utils/notifier.js');
 jest.mock('../src/utils/logger.js', () => ({
   logger: {
     error: jest.fn(),
@@ -618,6 +621,65 @@ describe('scanUsers', () => {
 
     let liquidations = await scanUsers(db, mockedSorobanHelper);
     expect(liquidations.length).toBe(2); // 1 bad debt auction for each pool
+  });
+
+  it('should handle failures to load pool data', async () => {
+    mockPoolUser.positions = new Positions(
+      new Map([[USDC_ID, BigInt(300e7)]]),
+      new Map([[XLM_ID, BigInt(3000e7)]]),
+      new Map()
+    );
+    mockPoolUserEstimate = PositionsEstimate.build(
+      mockPool,
+      mockPoolOracle,
+      mockPoolUser.positions
+    );
+    db.setUserEntry({
+      pool_id: 'pool1',
+      user_id: mockPoolUser.userId,
+      health_factor:
+        mockPoolUserEstimate.totalEffectiveCollateral /
+        mockPoolUserEstimate.totalEffectiveLiabilities,
+      collateral: new Map(),
+      liabilities: new Map(),
+      updated: 123,
+    });
+    db.setUserEntry({
+      pool_id: 'pool2',
+      user_id: mockPoolUser.userId,
+      health_factor:
+        mockPoolUserEstimate.totalEffectiveCollateral /
+        mockPoolUserEstimate.totalEffectiveLiabilities,
+      collateral: new Map(),
+      liabilities: new Map(),
+      updated: 123,
+    });
+    mockedSorobanHelper.loadUserPositionEstimate.mockImplementation(
+      (poolId: string, userId: string) => {
+        if (userId === mockPoolUser.userId) {
+          return Promise.resolve({
+            estimate: mockPoolUserEstimate,
+            user: mockPoolUser,
+          } as PoolUserEst);
+        } else if (userId === 'backstopAddress') {
+          return Promise.resolve({
+            estimate: mockBackstopPositionsEstimate,
+            user: mockBackstopPositions,
+          } as PoolUserEst);
+        }
+        return Promise.resolve({ estimate: {}, user: {} } as PoolUserEst);
+      }
+    );
+    mockedSorobanHelper.loadPoolOracle
+      .mockRejectedValueOnce(new Error('Failed to load pool oracle'))
+      .mockResolvedValueOnce(mockPoolOracle);
+    mockedSorobanHelper.loadAuction.mockResolvedValue(undefined);
+
+    let liquidations = await scanUsers(db, mockedSorobanHelper);
+    expect(liquidations.length).toBe(1);
+    const expectedErrorMessage = `Failed to scan for liquidations or bad debt in pool pool1: Error: Failed to load pool oracle`;
+    expect(logger.error).toHaveBeenCalledWith(expectedErrorMessage);
+    expect(sendNotification).toHaveBeenCalledWith(expectedErrorMessage);
   });
 });
 

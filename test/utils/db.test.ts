@@ -137,7 +137,16 @@ describe('AuctioneerDatabase', () => {
       updated: Date.now(),
     };
     db.setUserEntry(user2);
-    const result = db.getUserEntriesUnderHealthFactor(1.0);
+    const user3: UserEntry = {
+      pool_id: 'pool2',
+      user_id: 'user1',
+      health_factor: 0.5,
+      collateral: new Map([['asset1', BigInt(100)]]),
+      liabilities: new Map([['asset1', BigInt(50)]]),
+      updated: Date.now(),
+    };
+    db.setUserEntry(user3);
+    const result = db.getUserEntriesUnderHealthFactor('pool1', 1.0);
     expect(result).toContainEqual(user1);
   });
 

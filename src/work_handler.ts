@@ -1,17 +1,15 @@
-import { FixedMath } from '@blend-capital/blend-sdk';
 import { AppEvent, EventType } from './events.js';
 import { checkUsersForLiquidationsAndBadDebt, scanUsers } from './liquidations.js';
 import { OracleHistory } from './oracle_history.js';
 import { updateUser } from './user.js';
 import { APP_CONFIG } from './utils/config.js';
-import { AuctioneerDatabase, AuctionType } from './utils/db.js';
+import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
 import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
-import { WorkSubmissionType, WorkSubmitter } from './work_submitter.js';
-import { canFillerBid, checkFillerSupport, getFillerAvailableBalances } from './filler.js';
+import { WorkSubmitter } from './work_submitter.js';
 import { checkPoolForInterestAuction } from './interest.js';
 
 const MAX_RETRIES = 3;
@@ -57,8 +55,13 @@ export class WorkHandler {
           if (appEvent.type === EventType.VALIDATE_POOLS) {
             throw error;
           }
-          await deadletterEvent(appEvent);
-          return false;
+          try {
+            await deadletterEvent(appEvent);
+            return false;
+          } catch (error) {
+            logger.error(`Error sending event to dead letter queue.`, error);
+            return false;
+          }
         }
         logger.warn(`Error processing ${appEvent.type}.`, error);
         logger.warn(
@@ -148,7 +151,11 @@ export class WorkHandler {
             for (const user of oldUsers) {
               try {
                 // Send alert and log if user has not been updated in 1 month
-                if (user.updated < Math.max(appEvent.cutoff - 17280 * 14, 0)) {
+                // Ignore users that have been marked for refresh (updated = 0)
+                if (
+                  user.updated !== 0 &&
+                  user.updated < Math.max(appEvent.cutoff - 17280 * 14, 0)
+                ) {
                   const logMessage =
                     `Warning user has not been updated since ledger ${appEvent.cutoff}\n` +
                     `Pool: ${poolId}\n` +

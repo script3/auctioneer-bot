@@ -349,6 +349,83 @@ describe('poolEventHandler', () => {
     expect(mockedUpdateUser).toHaveBeenCalledWith(db, mockPool, user, estimate, ledger);
   });
 
+  it('should insert blank user data during failure to load user position estimates', async () => {
+    const ledger = 12345;
+    const poolEvent: PoolEventEvent = {
+      timestamp: 777,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: 'mockPoolId',
+        contractType: BlendContractType.Pool,
+        ledger,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.Borrow,
+        assetId: mockPool.metadata.reserveList[0],
+        from: pool_user,
+        amount: BigInt(1000),
+        dTokensMinted: BigInt(900),
+      },
+    };
+    let error = new Error('error');
+    mockedSorobanHelper.loadUserPositionEstimate.mockRejectedValue(error);
+
+    await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
+
+    let userEntry = db.getUserEntry('mockPoolId', pool_user);
+    expect(userEntry).toEqual({
+      pool_id: 'mockPoolId',
+      user_id: pool_user,
+      health_factor: 0,
+      collateral: new Map(),
+      liabilities: new Map(),
+      updated: 0,
+    });
+  });
+
+  it('should set updated to 0 for existing user during failure to load user position estimates', async () => {
+    const ledger = 12345;
+    const poolEvent: PoolEventEvent = {
+      timestamp: 777,
+      type: EventType.POOL_EVENT,
+      event: {
+        id: '1',
+        contractId: 'mockPoolId',
+        contractType: BlendContractType.Pool,
+        ledger,
+        ledgerClosedAt: '2021-10-01T00:00:00Z',
+        txHash: '0x123',
+        eventType: PoolEventType.WithdrawCollateral,
+        assetId: mockPool.metadata.reserveList[0],
+        from: pool_user,
+        amount: BigInt(1000),
+        bTokensBurned: BigInt(900),
+      },
+    };
+    let error = new Error('error');
+    mockedSorobanHelper.loadUserPositionEstimate.mockRejectedValue(error);
+
+    let existingUser = {
+      pool_id: 'mockPoolId',
+      user_id: pool_user,
+      health_factor: 1.543212431,
+      collateral: new Map([
+        ['asset1', 12345n],
+        ['asset2', 67890n],
+      ]),
+      liabilities: new Map([['asset3', 99999n]]),
+      updated: Date.now(),
+    };
+    db.setUserEntry(existingUser);
+
+    await poolEventHandler.processEventWithRetryAndDeadLetter(poolEvent);
+
+    let userEntry = db.getUserEntry('mockPoolId', pool_user);
+    existingUser.updated = 0;
+    expect(userEntry).toEqual(existingUser);
+  });
+
   it('finds filler and tracks auction for new liquidation event', async () => {
     let user = Keypair.random().publicKey();
     let ledger = 12345;

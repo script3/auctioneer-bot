@@ -28,7 +28,13 @@ export type AppEvent =
  * Base interface for all events.
  */
 export interface BaseEvent {
+  /**
+   * The type of event
+   */
   type: EventType;
+  /**
+   * The timestamp the event was created in milliseconds since epoch.
+   */
   timestamp: number;
 }
 

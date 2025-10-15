@@ -3,6 +3,7 @@ import { appendFile } from 'fs/promises';
 import { AppEvent, EventType } from '../events.js';
 import { parse, stringify } from './json.js';
 import { logger } from './logger.js';
+import { sendNotification } from './notifier.js';
 
 /**
  * Send an event as a message.
@@ -48,8 +49,8 @@ export function readEvent(message: any): AppEvent | undefined {
 export async function deadletterEvent(event: AppEvent) {
   let as_string = stringify(event);
   try {
-    logger.error(`Sending event to deadletter queue.`);
     await appendFile('./data/deadletter.txt', as_string + '\n');
+    logger.error(`Event sent to deadletter queue: ${as_string}`);
   } catch (error) {
     logger.error(`Error sending event to dead letter queue. Event: ${as_string} Error: ${error}`);
   }

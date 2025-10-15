@@ -259,15 +259,16 @@ export class AuctioneerDatabase {
   }
 
   /**
-   * Get all users in the database with a health factor under a certain value.
+   * Get users in the database from a pool with a health factor under a certain value.
+   * @param pool_id - The pool id the user belongs to
    * @param health_factor - The health factor to filter by
    * @returns An array user entries, or an empty array if none are found
    */
-  getUserEntriesUnderHealthFactor(health_factor: number): UserEntry[] {
+  getUserEntriesUnderHealthFactor(pool_id: string, health_factor: number): UserEntry[] {
     try {
       let entries: any[] = this.db
-        .prepare('SELECT * FROM users WHERE health_factor < ?')
-        .all(health_factor);
+        .prepare('SELECT * FROM users WHERE pool_id = ? AND health_factor < ?')
+        .all(pool_id, health_factor);
       return entries.map((entry) => {
         return {
           pool_id: entry.pool_id,

@@ -6,7 +6,6 @@ import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission, WorkSubmissionType } from './work_submitter.js';
 import { sendNotification } from './utils/notifier.js';
-import { stringify } from './utils/json.js';
 
 /**
  * A representation of a position taking into account the oracle price.
@@ -229,22 +228,20 @@ export async function scanUsers(
   db: AuctioneerDatabase,
   sorobanHelper: SorobanHelper
 ): Promise<WorkSubmission[]> {
-  let userPoolMap = new Map<string, string[]>();
-  let users = db.getUserEntriesUnderHealthFactor(1.2);
-  for (const user of users) {
-    if (!userPoolMap.has(user.pool_id)) {
-      userPoolMap.set(user.pool_id, []);
-    }
-    userPoolMap.get(user.pool_id)!.push(user.user_id);
-  }
-
   let submissions: WorkSubmission[] = [];
   for (const pool of APP_CONFIG.pools) {
-    const users = userPoolMap.get(pool) || [];
-    users.push(APP_CONFIG.backstopAddress);
-    submissions.push(
-      ...(await checkUsersForLiquidationsAndBadDebt(db, sorobanHelper, pool, users))
-    );
+    try {
+      const users = db.getUserEntriesUnderHealthFactor(pool, 1.2).map((entry) => entry.user_id);
+      users.push(APP_CONFIG.backstopAddress);
+      const auctions = await checkUsersForLiquidationsAndBadDebt(db, sorobanHelper, pool, users);
+      if (auctions.length > 0) {
+        submissions.push(...auctions);
+      }
+    } catch (error) {
+      const message = `Failed to scan for liquidations or bad debt in pool ${pool}: ${error}`;
+      logger.error(message);
+      await sendNotification(message);
+    }
   }
   return submissions;
 }
@@ -262,8 +259,9 @@ export async function checkUsersForLiquidationsAndBadDebt(
   poolId: string,
   user_ids: string[]
 ): Promise<WorkSubmission[]> {
-  const pool = await sorobanHelper.loadPool(poolId);
   logger.info(`Checking ${user_ids.length} users for liquidations..`);
+  const pool = await sorobanHelper.loadPool(poolId);
+  const oracle = await sorobanHelper.loadPoolOracle(poolId);
   let submissions: WorkSubmission[] = [];
   for (let user of user_ids) {
     try {
@@ -296,7 +294,6 @@ export async function checkUsersForLiquidationsAndBadDebt(
       ) {
         const { estimate: poolUserEstimate, user: poolUser } =
           await sorobanHelper.loadUserPositionEstimate(poolId, user);
-        const oracle = await sorobanHelper.loadPoolOracle(poolId);
         updateUser(db, pool, poolUser, poolUserEstimate);
         if (isLiquidatable(poolUserEstimate)) {
           const newLiq = calculateLiquidation(pool, poolUser.positions, poolUserEstimate, oracle);
@@ -324,7 +321,6 @@ export async function checkUsersForLiquidationsAndBadDebt(
         `User: ${user}\n` +
         `Error: ${e}`;
       logger.error(errorLog);
-      sendNotification(errorLog);
     }
   }
   return submissions;

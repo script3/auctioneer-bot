@@ -108,7 +108,7 @@ describe('messages.ts', () => {
       await deadletterEvent(event);
 
       expect(appendFile).toHaveBeenCalledWith('./data/deadletter.txt', as_string + '\n');
-      expect(logger.error).toHaveBeenCalledWith('Sending event to deadletter queue.');
+      expect(logger.error).toHaveBeenCalledWith('Event sent to deadletter queue: ' + as_string);
     });
 
     it('should log an error if appending to the deadletter queue fails', async () => {
@@ -126,7 +126,6 @@ describe('messages.ts', () => {
       await deadletterEvent(event);
 
       expect(appendFile).toHaveBeenCalledWith('./data/deadletter.txt', as_string + '\n');
-      expect(logger.error).toHaveBeenCalledWith('Sending event to deadletter queue.');
       expect(logger.error).toHaveBeenCalledWith(
         `Error sending event to dead letter queue. Event: ${as_string} Error: ${error}`
       );
