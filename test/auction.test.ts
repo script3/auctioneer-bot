@@ -7,10 +7,10 @@ import {
   PositionsEstimate,
   Request,
 } from '@blend-capital/blend-sdk';
-import { Keypair } from '@stellar/stellar-sdk';
-import { calculateAuctionFill, valueBackstopTokenInUSDC } from '../src/auction.js';
+import { Keypair, xdr } from '@stellar/stellar-sdk';
+import { calculateAuctionFill } from '../src/auction.js';
 import { getFillerAvailableBalances, getFillerProfitPct } from '../src/filler.js';
-import { Filler } from '../src/utils/config.js';
+import { PoolConfig } from '../src/utils/config.js';
 import { AuctioneerDatabase } from '../src/utils/db.js';
 import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import {
@@ -40,14 +40,14 @@ jest.mock('../src/utils/config.js', () => {
       backstopTokenAddress: 'CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM',
       usdcAddress: 'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
       blndAddress: 'CD25MNVTZDL4Y3XBCPCJXGXATV5WUHHOWMYFF4YBEGU5FCPGMYTVG5JY',
-      keypair: '',
-      fillers: [],
+      interestFillerAddress: 'CDMPO7TQH2CJIOARTKAUY2TNZNXMA3BJ2TP3JYUH7HNUMRAZMYUH4FOB',
+      fillerKeypair: Keypair.random(),
     },
   };
 });
 
 describe('auctions', () => {
-  let filler: Filler;
+  let poolConfig: PoolConfig;
   const mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
   let db: AuctioneerDatabase;
   let positionEstimate: PositionsEstimate;
@@ -62,23 +62,16 @@ describe('auctions', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     db = inMemoryAuctioneerDb();
-    filler = {
-      name: 'Tester',
-      keypair: Keypair.random(),
+    poolConfig = {
       defaultProfitPct: 0.1,
-      supportedPools: [
-        {
-          poolAddress: mockPool.id,
-          primaryAsset: USDC,
-          minPrimaryCollateral: 100n,
-          minHealthFactor: 1.2,
-          forceFill: true,
-        },
-      ],
+      poolAddress: mockPool.id,
+      primaryAsset: USDC,
+      minPrimaryCollateral: 100n,
+      minHealthFactor: 1.2,
+      forceFill: true,
       supportedBid: [],
       supportedLot: [],
     };
-
     positionEstimate = {
       totalBorrowed: 0,
       totalSupplied: 0,
@@ -97,17 +90,19 @@ describe('auctions', () => {
       estimate: positionEstimate,
       user: {} as PoolUser,
     });
-    mockedSorobanHelper.simLPTokenToUSDC.mockImplementation(
-      (backstopId: string, number: bigint) => {
-        // 0.5 USDC per LP token
-        return Promise.resolve((number * 5000000n) / 10000000n);
-      }
-    );
+    mockedSorobanHelper.simLPTokensToUSDC.mockImplementation((number: bigint) => {
+      // 0.50 USDC out per LP token in
+      return Promise.resolve((number * 5000000n) / 10000000n);
+    });
+    mockedSorobanHelper.simLPTokensGetUSDCIn.mockImplementation((number: bigint) => {
+      // 0.55 USDC in per LP token out
+      return Promise.resolve((number * 5500000n) / 10000000n);
+    });
   });
 
   describe('calcAuctionFill', () => {
     // *** Interest Auctions ***
-    it('calcs fill for interest auction', async () => {
+    it('calcs fill for interest auction happy path', async () => {
       let nextLedger = MOCK_LEDGER + 1;
       let auction = new Auction(BACKSTOP, AuctionType.Interest, {
         lot: new Map<string, bigint>([
@@ -122,12 +117,11 @@ describe('auctions', () => {
 
       mockedGetFillerProfitPct.mockReturnValue(0.1);
       mockedGetFilledAvailableBalances.mockResolvedValue(
-        new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(1000)]])
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(1000)]])
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -141,17 +135,13 @@ describe('auctions', () => {
           amount: 100n,
         },
       ];
-      expect(fill.block).toEqual(MOCK_LEDGER + 272);
+      expect(fill.block).toEqual(MOCK_LEDGER + 283);
       expect(fill.percent).toEqual(100);
       expect(fill.requests).toEqual(expectedRequests);
       expectRelApproxEqual(fill.lotValue, 260.5722, 0.005);
-      expectRelApproxEqual(fill.bidValue, 233.4726912, 0.005);
+      expectRelApproxEqual(fill.bidValue, 234.2387, 0.005);
 
-      expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith(
-        filler,
-        [BACKSTOP_TOKEN],
-        mockedSorobanHelper
-      );
+      expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith([USDC], mockedSorobanHelper);
     });
 
     it('calcs fill for interest auction and delays block to fully fill', async () => {
@@ -169,12 +159,11 @@ describe('auctions', () => {
 
       mockedGetFillerProfitPct.mockReturnValue(0.1);
       mockedGetFilledAvailableBalances.mockResolvedValue(
-        new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(400)]])
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(200)]])
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -188,15 +177,15 @@ describe('auctions', () => {
           amount: 100n,
         },
       ];
-      expect(fill.block).toEqual(MOCK_LEDGER + 272 + 19);
+      expect(fill.block).toEqual(MOCK_LEDGER + 283 + 19);
       expect(fill.percent).toEqual(100);
       expect(fill.requests).toEqual(expectedRequests);
       expectRelApproxEqual(fill.lotValue, 260.5722, 0.005);
-      expectRelApproxEqual(fill.bidValue, 198.8165886, 0.005);
+      expectRelApproxEqual(fill.bidValue, 196.1999, 0.005);
     });
 
-    it('calcs fill for interest auction at next ledger if past target block', async () => {
-      let nextLedger = MOCK_LEDGER + 280;
+    it('calcs fill for interest auction and delays tell block 400 if no usdc', async () => {
+      let nextLedger = MOCK_LEDGER + 1;
       let auction = new Auction(BACKSTOP, AuctionType.Interest, {
         lot: new Map<string, bigint>([
           [XLM, FixedMath.toFixed(120)],
@@ -210,12 +199,54 @@ describe('auctions', () => {
 
       mockedGetFillerProfitPct.mockReturnValue(0.1);
       mockedGetFilledAvailableBalances.mockResolvedValue(
-        new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(1000)]])
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(0)]])
+      );
+
+      poolConfig.forceFill = true;
+      let fill = await calculateAuctionFill(
+        poolConfig,
+        auction,
+        nextLedger,
+        mockedSorobanHelper,
+        db
+      );
+
+      let expectedRequests: Request[] = [
+        {
+          request_type: 8,
+          address: BACKSTOP,
+          amount: 100n,
+        },
+      ];
+      expect(fill.block).toEqual(MOCK_LEDGER + 400);
+      expect(fill.percent).toEqual(100);
+      expect(fill.requests).toEqual(expectedRequests);
+      expectRelApproxEqual(fill.lotValue, 260.5722, 0.005);
+      expect(fill.bidValue).toEqual(0);
+
+      expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith([USDC], mockedSorobanHelper);
+    });
+
+    it('calcs fill for interest auction at next ledger if past target block', async () => {
+      let nextLedger = MOCK_LEDGER + 290;
+      let auction = new Auction(BACKSTOP, AuctionType.Interest, {
+        lot: new Map<string, bigint>([
+          [XLM, FixedMath.toFixed(120)],
+          [USDC, FixedMath.toFixed(210)],
+          [EURC, FixedMath.toFixed(34)],
+          [AQUA, FixedMath.toFixed(2500)],
+        ]),
+        bid: new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(728.01456)]]),
+        block: MOCK_LEDGER,
+      });
+
+      mockedGetFillerProfitPct.mockReturnValue(0.1);
+      mockedGetFilledAvailableBalances.mockResolvedValue(
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(1000)]])
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -233,7 +264,7 @@ describe('auctions', () => {
       expect(fill.percent).toEqual(100);
       expect(fill.requests).toEqual(expectedRequests);
       expectRelApproxEqual(fill.lotValue, 260.5722, 0.005);
-      expectRelApproxEqual(fill.bidValue, 218.880648, 0.005);
+      expectRelApproxEqual(fill.bidValue, 220.2244, 0.005);
     });
 
     it('calcs fill for interest auction uses db prices when possible', async () => {
@@ -259,12 +290,11 @@ describe('auctions', () => {
 
       mockedGetFillerProfitPct.mockReturnValue(0.1);
       mockedGetFilledAvailableBalances.mockResolvedValue(
-        new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(1000)]])
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(1000)]])
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -278,11 +308,11 @@ describe('auctions', () => {
           amount: 100n,
         },
       ];
-      expect(fill.block).toEqual(MOCK_LEDGER + 260);
+      expect(fill.block).toEqual(MOCK_LEDGER + 273);
       expect(fill.percent).toEqual(100);
       expect(fill.requests).toEqual(expectedRequests);
       expectRelApproxEqual(fill.lotValue, 284.6922, 0.005);
-      expectRelApproxEqual(fill.bidValue, 254.805096, 0.005);
+      expectRelApproxEqual(fill.bidValue, 254.2590851, 0.005);
     });
 
     it('calcs fill for interest auction respects force fill setting', async () => {
@@ -300,23 +330,21 @@ describe('auctions', () => {
 
       mockedGetFillerProfitPct.mockReturnValue(0.2);
       mockedGetFilledAvailableBalances.mockResolvedValue(
-        new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(1000)]])
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(1000)]])
       );
 
-      filler.supportedPools[0].forceFill = true;
+      poolConfig.forceFill = true;
       let fill_force = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
         db
       );
 
-      filler.supportedPools[0].forceFill = false;
+      poolConfig.forceFill = false;
       let fill_no_force = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -334,9 +362,9 @@ describe('auctions', () => {
       expect(fill_force.percent).toEqual(100);
       expect(fill_force.requests).toEqual(expectedRequests);
       expectRelApproxEqual(fill_force.lotValue, 260.5722, 0.005);
-      expectRelApproxEqual(fill_force.bidValue, 312.5, 0.005);
+      expectRelApproxEqual(fill_force.bidValue, 343.75, 0.005);
 
-      expect(fill_no_force.block).toEqual(MOCK_LEDGER + 367);
+      expect(fill_no_force.block).toEqual(MOCK_LEDGER + 370);
       expect(fill_no_force.percent).toEqual(100);
       expect(fill_no_force.requests).toEqual(expectedRequests);
       expectRelApproxEqual(fill_no_force.lotValue, 260.5722, 0.005);
@@ -369,8 +397,7 @@ describe('auctions', () => {
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -391,7 +418,6 @@ describe('auctions', () => {
       expectRelApproxEqual(fill.bidValue, 29.73769976, 0.005);
 
       expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith(
-        filler,
         [USDC, EURC, XLM],
         mockedSorobanHelper
       );
@@ -425,8 +451,7 @@ describe('auctions', () => {
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -484,8 +509,7 @@ describe('auctions', () => {
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -537,8 +561,7 @@ describe('auctions', () => {
       mockedGetFilledAvailableBalances.mockResolvedValue(new Map<string, bigint>([]));
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -578,8 +601,7 @@ describe('auctions', () => {
       mockedGetFilledAvailableBalances.mockResolvedValue(new Map<string, bigint>([]));
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -624,8 +646,7 @@ describe('auctions', () => {
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -683,8 +704,7 @@ describe('auctions', () => {
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -749,8 +769,7 @@ describe('auctions', () => {
       );
 
       let fill = await calculateAuctionFill(
-        mockPool.id,
-        filler,
+        poolConfig,
         auction,
         nextLedger,
         mockedSorobanHelper,
@@ -781,37 +800,9 @@ describe('auctions', () => {
       expectRelApproxEqual(fill.bidValue, 1495.503014, 0.005);
 
       expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith(
-        filler,
         [XLM, USDC],
         mockedSorobanHelper
       );
-    });
-  });
-
-  describe('valueBackstopTokenInUSDC', () => {
-    it('values from sim', async () => {
-      let lpTokenToUSDC = 0.5;
-      mockedSorobanHelper.simLPTokenToUSDC.mockResolvedValue(FixedMath.toFixed(lpTokenToUSDC));
-      mockedSorobanHelper.loadBackstopToken.mockResolvedValue({
-        lpTokenPrice: 1.25,
-      } as BackstopToken);
-
-      let value = await valueBackstopTokenInUSDC(mockedSorobanHelper, FixedMath.toFixed(2));
-
-      expect(value).toEqual(lpTokenToUSDC);
-      expect(mockedSorobanHelper.loadBackstopToken).toHaveBeenCalledTimes(0);
-    });
-
-    it('values from spot price if sim fails', async () => {
-      mockedSorobanHelper.simLPTokenToUSDC.mockResolvedValue(undefined);
-      mockedSorobanHelper.loadBackstopToken.mockResolvedValue({
-        lpTokenPrice: 1.25,
-      } as BackstopToken);
-
-      let value = await valueBackstopTokenInUSDC(mockedSorobanHelper, FixedMath.toFixed(2));
-
-      expect(value).toEqual(1.25 * 2);
-      expect(mockedSorobanHelper.loadBackstopToken).toHaveBeenCalledTimes(1);
     });
   });
 });

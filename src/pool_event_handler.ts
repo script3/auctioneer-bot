@@ -11,6 +11,7 @@ import { deadletterEvent, sendEvent } from './utils/messages.js';
 import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission } from './work_submitter.js';
+
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 200;
 
@@ -67,13 +68,13 @@ export class PoolEventHandler {
    * @param poolEvent - The pool event to handle
    */
   async handlePoolEvent(poolEvent: PoolEventEvent): Promise<void> {
-    const poolId = APP_CONFIG.pools.find((pool) => pool === poolEvent.event.contractId);
-    if (!poolId) {
+    const poolConfig = APP_CONFIG.pools.find((c) => c.poolAddress === poolEvent.event.contractId);
+    if (!poolConfig) {
       logger.error(`Received event from an unsupported pool: ${stringify(poolEvent.event)}`);
       return;
     }
 
-    const pool = await this.sorobanHelper.loadPool(poolId);
+    const pool = await this.sorobanHelper.loadPool(poolConfig.poolAddress);
     switch (poolEvent.event.eventType) {
       case PoolEventType.SupplyCollateral:
       case PoolEventType.WithdrawCollateral:
@@ -82,65 +83,60 @@ export class PoolEventHandler {
       case PoolEventType.Repay: {
         // update the user in the db
         const { estimate: userPositionsEstimate, user } =
-          await this.sorobanHelper.loadUserPositionEstimate(poolId, poolEvent.event.from);
+          await this.sorobanHelper.loadUserPositionEstimate(
+            poolConfig.poolAddress,
+            poolEvent.event.from
+          );
         updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
         break;
       }
 
       case PoolEventType.NewAuction: {
         // check if the auction should be bid on by an auctioneer
-        let fillerFound = false;
-        for (const filler of APP_CONFIG.fillers) {
-          // check if filler should try and bid on the auction
-          if (!canFillerBid(filler, poolId, poolEvent.event.auctionData)) {
-            continue;
-          }
-          let auctionEntry: AuctionEntry = {
-            pool_id: poolId,
-            user_id: poolEvent.event.user,
-            auction_type: poolEvent.event.auctionType,
-            filler: filler.keypair.publicKey(),
-            start_block: poolEvent.event.auctionData.block,
-            fill_block: 0,
-            updated: poolEvent.event.ledger,
-          };
-          this.db.setAuctionEntry(auctionEntry);
-
-          const logMessage =
-            `New auction\n` +
-            `Type: ${AuctionType[poolEvent.event.auctionType]}\n` +
-            `Filler: ${filler.name}\n` +
-            `Pool: ${poolId}\n` +
-            `User: ${poolEvent.event.user}\n` +
-            `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
-          await sendNotification(logMessage);
-          logger.info(logMessage);
-          fillerFound = true;
-          break;
-        }
-        if (!fillerFound) {
+        if (!canFillerBid(pool.id, poolEvent.event.auctionData)) {
           const logMessage =
             `Auction Ignored\n` +
             `Type: ${AuctionType[poolEvent.event.auctionType]}\n` +
-            `Pool: ${poolId}\n` +
+            `Pool: ${pool.id}\n` +
             `User: ${poolEvent.event.user}\n` +
             `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
           await sendNotification(logMessage);
           logger.info(logMessage);
+          return;
         }
+        let auctionEntry: AuctionEntry = {
+          pool_id: pool.id,
+          user_id: poolEvent.event.user,
+          auction_type: poolEvent.event.auctionType,
+          filler: APP_CONFIG.fillerKeypair.publicKey(),
+          start_block: poolEvent.event.auctionData.block,
+          fill_block: 0,
+          updated: poolEvent.event.ledger,
+        };
+        this.db.setAuctionEntry(auctionEntry);
+
+        const logMessage =
+          `New auction\n` +
+          `Type: ${AuctionType[poolEvent.event.auctionType]}\n` +
+          `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
+          `Pool: ${pool.id}\n` +
+          `User: ${poolEvent.event.user}\n` +
+          `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
+        await sendNotification(logMessage);
+        logger.info(logMessage);
         break;
       }
       case PoolEventType.DeleteLiquidationAuction: {
         // user position is now healthy and user deleted their liquidation auction
         let runResult = this.db.deleteAuctionEntry(
-          poolId,
+          pool.id,
           poolEvent.event.user,
           AuctionType.Liquidation
         );
         if (runResult.changes !== 0) {
           const logMessage =
             `Liquidation Auction Deleted\n` +
-            `Pool: ${poolId}\n` +
+            `Pool: ${pool.id}\n` +
             `User: ${poolEvent.event.user}\n`;
           await sendNotification(logMessage);
           logger.info(logMessage);
@@ -153,7 +149,7 @@ export class PoolEventHandler {
           `Auction Fill Event\n` +
           `Type ${AuctionType[poolEvent.event.auctionType]}\n` +
           `Filler: ${fillerAddress}\n` +
-          `Pool: ${poolId}\n` +
+          `Pool: ${pool.id}\n` +
           `User: ${poolEvent.event.user}\n` +
           `Fill Percent: ${poolEvent.event.fillAmount}\n` +
           `Tx Hash: ${poolEvent.event.txHash}\n`;
@@ -162,7 +158,7 @@ export class PoolEventHandler {
         if (poolEvent.event.fillAmount === BigInt(100)) {
           // auction was fully filled, remove from ongoing auctions
           let runResult = this.db.deleteAuctionEntry(
-            poolId,
+            pool.id,
             poolEvent.event.user,
             poolEvent.event.auctionType
           );
@@ -170,26 +166,26 @@ export class PoolEventHandler {
             logger.info(
               `Auction Deleted\n` +
                 `Type: ${AuctionType[poolEvent.event.auctionType]}\n` +
-                `Pool: ${poolId}\n` +
+                `Pool: ${pool.id}\n` +
                 `User: ${poolEvent.event.user}`
             );
           }
         }
         if (poolEvent.event.auctionType === AuctionType.Liquidation) {
           const { estimate: userPositionsEstimate, user } =
-            await this.sorobanHelper.loadUserPositionEstimate(poolId, poolEvent.event.user);
+            await this.sorobanHelper.loadUserPositionEstimate(pool.id, poolEvent.event.user);
           updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
           const { estimate: fillerPositionsEstimate, user: filler } =
-            await this.sorobanHelper.loadUserPositionEstimate(poolId, fillerAddress);
+            await this.sorobanHelper.loadUserPositionEstimate(pool.id, fillerAddress);
           updateUser(this.db, pool, filler, fillerPositionsEstimate, poolEvent.event.ledger);
         } else if (poolEvent.event.auctionType === AuctionType.BadDebt) {
           const { estimate: fillerPositionsEstimate, user: filler } =
-            await this.sorobanHelper.loadUserPositionEstimate(poolId, fillerAddress);
+            await this.sorobanHelper.loadUserPositionEstimate(pool.id, fillerAddress);
           updateUser(this.db, pool, filler, fillerPositionsEstimate, poolEvent.event.ledger);
           sendEvent(this.worker, {
             type: EventType.CHECK_USER,
             timestamp: Date.now(),
-            poolId,
+            poolId: pool.id,
             userId: APP_CONFIG.backstopAddress,
           });
         }
@@ -199,12 +195,12 @@ export class PoolEventHandler {
       case PoolEventType.BadDebt: {
         // user has transferred bad debt to the backstop address
         const { estimate: userPositionsEstimate, user } =
-          await this.sorobanHelper.loadUserPositionEstimate(poolId, poolEvent.event.user);
+          await this.sorobanHelper.loadUserPositionEstimate(pool.id, poolEvent.event.user);
         updateUser(this.db, pool, user, userPositionsEstimate, poolEvent.event.ledger);
         sendEvent(this.worker, {
           type: EventType.CHECK_USER,
           timestamp: Date.now(),
-          poolId,
+          poolId: pool.id,
           userId: APP_CONFIG.backstopAddress,
         });
         break;
@@ -212,12 +208,12 @@ export class PoolEventHandler {
       case PoolEventType.DeleteAuction: {
         const user = poolEvent.event.user;
         const auctionType = poolEvent.event.auctionType;
-        let runResult = this.db.deleteAuctionEntry(poolId, user, auctionType);
+        let runResult = this.db.deleteAuctionEntry(pool.id, user, auctionType);
         if (runResult.changes !== 0) {
           const logMessage =
             `Stale Auction Deleted\n` +
             `Type: ${AuctionType[auctionType]}\n` +
-            `Pool: ${poolId}\n` +
+            `Pool: ${pool.id}\n` +
             `User: ${user}`;
           await sendNotification(logMessage);
           logger.info(logMessage);

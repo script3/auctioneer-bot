@@ -1,5 +1,5 @@
 import { ContractError, ContractErrorType, PoolContractV2 } from '@blend-capital/blend-sdk';
-import { APP_CONFIG, Filler } from './utils/config.js';
+import { APP_CONFIG } from './utils/config.js';
 import { AuctionType } from './utils/db.js';
 import { serializeError, stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
@@ -79,7 +79,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         );
         return true;
       }
-      await sorobanHelper.submitTransaction(op, APP_CONFIG.keypair);
+      await sorobanHelper.submitTransaction(op, APP_CONFIG.workerKeypair);
       const logMessage =
         `Successfully created auction\n` +
         `Auction Type: ${AuctionType[auction.auctionType]}\n` +
@@ -128,7 +128,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
       );
       const pool = new PoolContractV2(badDebtTransfer.poolId);
       const op = pool.badDebt(badDebtTransfer.user);
-      await sorobanHelper.submitTransaction(op, APP_CONFIG.keypair);
+      await sorobanHelper.submitTransaction(op, APP_CONFIG.workerKeypair);
       const logMessage =
         `Successfully transferred bad debt to backstop\n` +
         `Pool: ${badDebtTransfer.poolId}\n` +

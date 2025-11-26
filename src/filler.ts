@@ -10,7 +10,7 @@ import {
   Reserve,
 } from '@blend-capital/blend-sdk';
 import { Asset } from '@stellar/stellar-sdk';
-import { APP_CONFIG, AuctionProfit, Filler } from './utils/config.js';
+import { APP_CONFIG, AuctionProfit, PoolConfig } from './utils/config.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
@@ -19,58 +19,73 @@ const MAX_WITHDRAW = BigInt('9223372036854775807');
 
 /**
  * Check if the filler supports bidding on the auction.
- * @param filler - The filler to check
+ * @param poolId - The pool ID
  * @param auctionData - The auction data for the auction
  * @returns A boolean indicating if the filler cares about the auction.
  */
-export function canFillerBid(filler: Filler, poolId: string, auctionData: AuctionData): boolean {
-  return checkFillerSupport(filler, poolId, Array.from(auctionData.bid.keys()), Array.from(auctionData.lot.keys()));
+export function canFillerBid(poolId: string, auctionData: AuctionData): boolean {
+  let poolConfig = APP_CONFIG.pools.find((p) => p.poolAddress === poolId);
+  if (!poolConfig) {
+    return false;
+  }
+  return checkFillerSupport(
+    poolConfig,
+    Array.from(auctionData.bid.keys()),
+    Array.from(auctionData.lot.keys())
+  );
 }
 
 /**
  * Check if the filler supports the pool and assets for the auction.
- * @param filler - The filler to check
- * @param poolId - The pool ID
+ * @param poolConfig - The pool configuration to check
  * @param bid - The bid assets
  * @param lot - The lot assets
  * @returns A boolean indicating if the filler supports the pool and assets
  */
-export function checkFillerSupport(filler: Filler, poolId: string, bid: string[], lot: string[]): boolean {
-  if (filler.supportedPools.find((pool) => pool.poolAddress === poolId) === undefined) {
+export function checkFillerSupport(poolConfig: PoolConfig, bid: string[], lot: string[]): boolean {
+  // assert bid is either a wildcard or all bid assets are supported
+  if (
+    !poolConfig.supportedBid.includes('*') &&
+    bid.some((address) => !poolConfig.supportedBid.includes(address))
+  ) {
     return false;
   }
-  if (bid.every((address) => filler.supportedBid.includes(address)) && 
-      lot.every((address) => filler.supportedLot.includes(address))) {
-    return true;
+
+  // assert lot is either a wildcard or all lot assets are supported
+  if (
+    !poolConfig.supportedLot.includes('*') &&
+    lot.some((address) => !poolConfig.supportedLot.includes(address))
+  ) {
+    return false;
   }
-  return false;
+
+  return true;
 }
 
 /**
  * Get the profit percentage the filler should bid at for the auction.
- * @param filler - The filler
+ * @param poolConfig - The pool configuration for the filler
  * @param auctionProfits - The auction profits for the bot
  * @param auctionData - The auction data for the auction
  * @returns The profit percentage the filler should bid at, as a float where 1.0 is 100%
  */
-export function getFillerProfitPct(
-  filler: Filler,
-  auctionProfits: AuctionProfit[],
-  auctionData: AuctionData
-): number {
+export function getFillerProfitPct(poolConfig: PoolConfig, auctionData: AuctionData): number {
   let bidAssets = Array.from(auctionData.bid.keys());
   let lotAssets = Array.from(auctionData.lot.keys());
+  let auctionProfits = APP_CONFIG.profits ?? [];
   for (const profit of auctionProfits) {
     if (
-      bidAssets.some((address) => !profit.supportedBid.includes(address)) ||
-      lotAssets.some((address) => !profit.supportedLot.includes(address))
+      (!bidAssets.includes('*') &&
+        bidAssets.some((address) => !profit.supportedBid.includes(address))) ||
+      (!lotAssets.includes('*') &&
+        lotAssets.some((address) => !profit.supportedLot.includes(address)))
     ) {
       // either some bid asset or some lot asset is not in the profit's supported assets, skip
       continue;
     }
     return profit.profitPct;
   }
-  return filler.defaultProfitPct;
+  return poolConfig.defaultProfitPct;
 }
 
 /**
@@ -80,11 +95,10 @@ export function getFillerProfitPct(
  * @param sorobanHelper - The soroban helper object
  */
 export async function getFillerAvailableBalances(
-  filler: Filler,
   assets: string[],
   sorobanHelper: SorobanHelper
 ): Promise<Map<string, bigint>> {
-  const balances = await sorobanHelper.loadBalances(filler.keypair.publicKey(), assets);
+  const balances = await sorobanHelper.loadBalances(APP_CONFIG.fillerKeypair.publicKey(), assets);
   const xlm_address = Asset.native().contractId(APP_CONFIG.networkPassphrase);
   const xlm_bal = balances.get(xlm_address);
   if (xlm_bal !== undefined) {
@@ -102,7 +116,7 @@ export async function getFillerAvailableBalances(
  *
  * Note - some buffer is applied to ensure that subsequent calls to "managePositions" does not create dust.
  *
- * @param filler - The filler
+ * @param poolConfig - The pool configuration for the filler
  * @param pool - The pool
  * @param poolOracle - The pool's oracle object
  * @param poolUser - The filler's pool user object
@@ -111,7 +125,7 @@ export async function getFillerAvailableBalances(
  * @returns An array of requests to be submitted to the network, or an empty array if no actions are required
  */
 export function managePositions(
-  filler: Filler,
+  poolConfig: PoolConfig,
   pool: Pool,
   poolOracle: PoolOracle,
   positions: Positions,
@@ -121,11 +135,6 @@ export function managePositions(
   const positionsEst = PositionsEstimate.build(pool, poolOracle, positions);
   let effectiveLiabilities = positionsEst.totalEffectiveLiabilities;
   let effectiveCollateral = positionsEst.totalEffectiveCollateral;
-  const fillerConfig = filler.supportedPools.find((config) => config.poolAddress === pool.id);
-  if (fillerConfig === undefined) {
-    logger.error(`${filler.name} filler unable to find filler config for pool: ${pool.id}`);
-    return requests;
-  }
   const hasLeftoverLiabilities: number[] = [];
   // attempt to repay any liabilities the filler has
   for (const [assetIndex, amount] of positions.liabilities) {
@@ -163,7 +172,7 @@ export function managePositions(
   // short circuit collateral withdrawal if close to min hf
   // this avoids very small amout of dust collateral being withdrawn and
   // causing unwind events to loop
-  if (fillerConfig.minHealthFactor * 1.01 > effectiveCollateral / effectiveLiabilities) {
+  if (poolConfig.minHealthFactor * 1.01 > effectiveCollateral / effectiveLiabilities) {
     return requests;
   }
 
@@ -196,7 +205,7 @@ export function managePositions(
       collateralList.push({ reserve, price, amount, size: 0 });
     }
     // hacky - set size to MAX for (3), to ensure it is withdrawn last
-    else if (reserve.assetId === fillerConfig.primaryAsset) {
+    else if (reserve.assetId === poolConfig.primaryAsset) {
       collateralList.push({ reserve, price, amount, size: Number.MAX_SAFE_INTEGER });
     } else {
       const size = reserve.toEffectiveAssetFromBTokenFloat(amount) * price;
@@ -212,12 +221,12 @@ export function managePositions(
       // no liabilities, withdraw the full position
       withdrawAmount = MAX_WITHDRAW;
     } else {
-      if (fillerConfig.minHealthFactor * 1.005 > effectiveCollateral / effectiveLiabilities) {
+      if (poolConfig.minHealthFactor * 1.005 > effectiveCollateral / effectiveLiabilities) {
         // stop withdrawing collateral if close to min health factor
         break;
       }
       const maxWithdraw =
-        (effectiveCollateral - effectiveLiabilities * fillerConfig.minHealthFactor) /
+        (effectiveCollateral - effectiveLiabilities * poolConfig.minHealthFactor) /
         (reserve.getCollateralFactor() * price);
       const position = reserve.toAssetFromBTokenFloat(amount);
       withdrawAmount = maxWithdraw > position ? MAX_WITHDRAW : FixedMath.toFixed(maxWithdraw, 7);
@@ -228,12 +237,12 @@ export function managePositions(
       break;
     }
     // require the filler to keep at least the min collateral balance of their primary asset
-    if (reserve.assetId === fillerConfig.primaryAsset) {
-      const toMinPosition = reserve.toAssetFromBToken(amount) - fillerConfig.minPrimaryCollateral;
+    if (reserve.assetId === poolConfig.primaryAsset) {
+      const toMinPosition = reserve.toAssetFromBToken(amount) - poolConfig.minPrimaryCollateral;
       withdrawAmount = withdrawAmount > toMinPosition ? toMinPosition : withdrawAmount;
       // if withdrawAmount is less than 1% of the minPrimaryCollateral stop
       // this prevents dust withdraws from looping unwind events due to interest accrual
-      if (withdrawAmount < fillerConfig.minPrimaryCollateral / 100n) {
+      if (withdrawAmount < poolConfig.minPrimaryCollateral / 100n) {
         break;
       }
     }

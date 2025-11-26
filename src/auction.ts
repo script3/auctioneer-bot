@@ -8,7 +8,7 @@ import {
   RequestType,
 } from '@blend-capital/blend-sdk';
 import { getFillerAvailableBalances, getFillerProfitPct } from './filler.js';
-import { APP_CONFIG, Filler } from './utils/config.js';
+import { APP_CONFIG, PoolConfig } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
@@ -19,9 +19,9 @@ export interface AuctionFill {
   block: number;
   // The percent of the auction to fill
   percent: number;
-  // The expected lot value paid by the filler
+  // The expected lot value the filler will receive
   lotValue: number;
-  // The expected bid value the filler will receive
+  // The expected bid value the filler will pay
   bidValue: number;
   // The requests to fill the auction
   requests: Request[];
@@ -35,20 +35,19 @@ export interface AuctionValue {
 }
 
 export async function calculateAuctionFill(
-  poolId: string,
-  filler: Filler,
+  poolConfig: PoolConfig,
   auction: Auction,
   nextLedger: number,
   sorobanHelper: SorobanHelper,
   db: AuctioneerDatabase
 ): Promise<AuctionFill> {
   try {
-    const pool = await sorobanHelper.loadPool(poolId);
-    const poolOracle = await sorobanHelper.loadPoolOracle(poolId);
+    const pool = await sorobanHelper.loadPool(poolConfig.poolAddress);
+    const poolOracle = await sorobanHelper.loadPoolOracle(poolConfig.poolAddress);
 
     const auctionValue = await calculateAuctionValue(auction, pool, poolOracle, sorobanHelper, db);
     return await calculateBlockFillAndPercent(
-      filler,
+      poolConfig,
       auction,
       auctionValue,
       pool,
@@ -65,14 +64,14 @@ export async function calculateAuctionFill(
 /**
  * Calculate the block fill and fill percent for a given auction.
  *
- * @param filler - The filler to calculate the block fill for
+ * @param poolConfig - The pool configuration to calculate the block fill for
  * @param auction - The auction to calculate the fill for
  * @param auctionValue - The calculate value of the base auction
  * @param nextLedger - The next ledger number
  * @param sorobanHelper - The soroban helper to use for the calculation
  */
 export async function calculateBlockFillAndPercent(
-  filler: Filler,
+  poolConfig: PoolConfig,
   auction: Auction,
   auctionValue: AuctionValue,
   pool: Pool,
@@ -83,11 +82,6 @@ export async function calculateBlockFillAndPercent(
   let fillBlockDelay = 0;
   let fillPercent = 100;
   let requests: Request[] = [];
-  const fillerConfig = filler.supportedPools.find((config) => config.poolAddress === pool.id);
-  if (fillerConfig === undefined) {
-    logger.error(`Unable to find filler config for pool: ${pool.id}`);
-    throw new Error(`Unable to find filler config for pool: ${pool.id}`);
-  }
 
   // get relevant assets for the auction
   const relevant_assets = [];
@@ -95,18 +89,17 @@ export async function calculateBlockFillAndPercent(
     case AuctionType.Liquidation:
       relevant_assets.push(...Array.from(auction.data.lot.keys()));
       relevant_assets.push(...Array.from(auction.data.bid.keys()));
-      relevant_assets.push(fillerConfig.primaryAsset);
+      relevant_assets.push(poolConfig.primaryAsset);
       break;
     case AuctionType.Interest:
-      relevant_assets.push(APP_CONFIG.backstopTokenAddress);
+      relevant_assets.push(APP_CONFIG.usdcAddress);
       break;
     case AuctionType.BadDebt:
       relevant_assets.push(...Array.from(auction.data.bid.keys()));
-      relevant_assets.push(fillerConfig.primaryAsset);
+      relevant_assets.push(poolConfig.primaryAsset);
       break;
   }
   const fillerBalances = await getFillerAvailableBalances(
-    filler,
     [...new Set(relevant_assets)],
     sorobanHelper
   );
@@ -115,7 +108,8 @@ export async function calculateBlockFillAndPercent(
   let { effectiveCollateral, effectiveLiabilities, lotValue, bidValue } = auctionValue;
 
   // find the block delay where the auction meets the required profit percentage
-  const profitPercent = getFillerProfitPct(filler, APP_CONFIG.profits ?? [], auction.data);
+  const profitPercent = getFillerProfitPct(poolConfig, auction.data);
+
   if (lotValue >= bidValue * (1 + profitPercent)) {
     const minLotAmount = bidValue * (1 + profitPercent);
     fillBlockDelay = 200 - (lotValue - minLotAmount) / (lotValue / 200);
@@ -125,7 +119,7 @@ export async function calculateBlockFillAndPercent(
   }
   fillBlockDelay = Math.min(Math.max(Math.ceil(fillBlockDelay), 0), 400);
   // apply force fill auction boundries to profit calculations
-  if (fillerConfig.forceFill) {
+  if (poolConfig.forceFill) {
     fillBlockDelay = Math.min(fillBlockDelay, 350);
   }
 
@@ -139,23 +133,22 @@ export async function calculateBlockFillAndPercent(
 
   const [scaledAuction] = auction.scale(auction.data.block + fillBlockDelay, 100);
 
-  // require that the filler can fully fill interest auctions
+  // filler waits until they can fully fill the interest auction
   if (auction.type === AuctionType.Interest) {
-    const cometLpTokenBalance = fillerBalances.get(APP_CONFIG.backstopTokenAddress) ?? 0n;
-    const cometLpBid = scaledAuction.data.bid.get(APP_CONFIG.backstopTokenAddress) ?? 0n;
-    if (cometLpBid > cometLpTokenBalance) {
-      const additionalCometLp = FixedMath.toFloat(cometLpBid - cometLpTokenBalance, 7);
-      const baseCometLpBid = auction.data.bid.get(APP_CONFIG.backstopTokenAddress) ?? 0n;
-      const bidStepSize = FixedMath.toFloat(baseCometLpBid, 7) / 200;
-      if (additionalCometLp >= 0 && bidStepSize > 0) {
-        const additionalDelay = Math.ceil(additionalCometLp / bidStepSize);
+    const usdcBalance = FixedMath.toFloat(fillerBalances.get(APP_CONFIG.usdcAddress) ?? 0n, 7);
+    const usdcMaxIn = auctionValue.bidValue * bidScalar * 1.01; // allow for 1% slippage from mint price
+    if (usdcMaxIn > usdcBalance) {
+      const additionalUsdcNeeded = usdcMaxIn - usdcBalance;
+      const usdcStepSize = auctionValue.bidValue / 200;
+      if (additionalUsdcNeeded >= 0 && usdcStepSize > 0) {
+        const additionalDelay = Math.ceil(additionalUsdcNeeded / usdcStepSize);
         fillBlockDelay = Math.min(400, fillBlockDelay + additionalDelay);
       }
     }
   } else if (auction.type === AuctionType.Liquidation || auction.type === AuctionType.BadDebt) {
     const { estimate: fillerPositionEstimates } = await sorobanHelper.loadUserPositionEstimate(
       pool.id,
-      filler.keypair.publicKey()
+      APP_CONFIG.fillerKeypair.publicKey()
     );
     let canFillWithSafeHF = false;
     let iterations = 0;
@@ -170,7 +163,7 @@ export async function calculateBlockFillAndPercent(
       // inflate minHealthFactor slightly, to allow for the unwind logic to unwind looped positions safely
       const additionalLiabilities = effectiveLiabilities * bidScalar * (fillPercent / 100);
       const additionalCollateral = effectiveCollateral * lotScalar * (fillPercent / 100);
-      const safeHealthFactor = fillerConfig.minHealthFactor * 1.1;
+      const safeHealthFactor = poolConfig.minHealthFactor * 1.1;
       let limitToHF =
         (fillerPositionEstimates.totalEffectiveCollateral + additionalCollateral) /
           safeHealthFactor -
@@ -224,9 +217,9 @@ export async function calculateBlockFillAndPercent(
 
       if (limitToHF < 0) {
         // if we still are under the health factor, we need to try and add more of the fillers primary asset as collateral
-        const primaryBalance = loopFillerBalances.get(fillerConfig.primaryAsset) ?? 0n;
-        const primaryReserve = pool.reserves.get(fillerConfig.primaryAsset);
-        const primaryOraclePrice = poolOracle.getPriceFloat(fillerConfig.primaryAsset);
+        const primaryBalance = loopFillerBalances.get(poolConfig.primaryAsset) ?? 0n;
+        const primaryReserve = pool.reserves.get(poolConfig.primaryAsset);
+        const primaryOraclePrice = poolOracle.getPriceFloat(poolConfig.primaryAsset);
         if (
           primaryReserve !== undefined &&
           primaryOraclePrice !== undefined &&
@@ -244,7 +237,7 @@ export async function calculateBlockFillAndPercent(
           collateralAdded += collateral;
           requests.push({
             request_type: RequestType.SupplyCollateral,
-            address: fillerConfig.primaryAsset,
+            address: poolConfig.primaryAsset,
             amount: FixedMath.toFixed(primaryDeposit, primaryReserve.config.decimals),
           });
         }
@@ -382,7 +375,14 @@ export async function calculateAuctionValue(
           `Unexpected bad debt auction. Lot contains asset other than the backstop token: ${assetId}`
         );
       }
-      lotValue += await valueBackstopTokenInUSDC(sorobanHelper, amount);
+      const lpTokenValue = await sorobanHelper.simLPTokensToUSDC(amount);
+      if (lpTokenValue !== undefined) {
+        lotValue += FixedMath.toFloat(lpTokenValue, 7);
+      } else {
+        // assume 2% slippage on spot price
+        const backstopToken = await sorobanHelper.loadBackstopToken();
+        lotValue += FixedMath.toFloat(amount, 7) * (backstopToken.lpTokenPrice * 0.98);
+      }
     } else {
       throw new Error(`Failed to value lot asset: ${assetId}`);
     }
@@ -407,31 +407,18 @@ export async function calculateAuctionValue(
           `Unexpected interest auction. Bid contains asset other than the backstop token: ${assetId}`
         );
       }
-      bidValue += await valueBackstopTokenInUSDC(sorobanHelper, amount);
+      const lpTokenValue = await sorobanHelper.simLPTokensGetUSDCIn(amount);
+      if (lpTokenValue !== undefined) {
+        bidValue += FixedMath.toFloat(lpTokenValue, 7);
+      } else {
+        // assume 2% slippage on deposit
+        const backstopToken = await sorobanHelper.loadBackstopToken();
+        bidValue += FixedMath.toFloat(amount, 7) * (backstopToken.lpTokenPrice * 1.02);
+      }
     } else {
       throw new Error(`Failed to value bid asset: ${assetId}`);
     }
   }
 
   return { effectiveCollateral, effectiveLiabilities, lotValue, bidValue };
-}
-
-/**
- * Value an amount of backstop tokens in USDC.
- * @param sorobanHelper - The soroban helper to use for the calculation
- * @param amount - The amount of backstop tokens to value
- * @returns The value of the backstop tokens in USDC
- */
-export async function valueBackstopTokenInUSDC(
-  sorobanHelper: SorobanHelper,
-  amount: bigint
-): Promise<number> {
-  // attempt to value via a single sided withdraw to USDC
-  const lpTokenValue = await sorobanHelper.simLPTokenToUSDC(APP_CONFIG.backstopAddress, amount);
-  if (lpTokenValue !== undefined) {
-    return FixedMath.toFloat(lpTokenValue, 7);
-  } else {
-    const backstopToken = await sorobanHelper.loadBackstopToken();
-    return FixedMath.toFloat(amount, 7) * backstopToken.lpTokenPrice;
-  }
 }

@@ -9,16 +9,9 @@ import {
 } from '@blend-capital/blend-sdk';
 import { Keypair } from '@stellar/stellar-sdk';
 import { canFillerBid, getFillerProfitPct, managePositions } from '../src/filler';
-import { AuctionProfit, Filler } from '../src/utils/config';
+import { AppConfig, AuctionProfit, PoolConfig } from '../src/utils/config';
 import { mockPool } from './helpers/mocks';
 
-jest.mock('../src/utils/config.js', () => {
-  return {
-    APP_CONFIG: {
-      networkPassphrase: 'Public Global Stellar Network ; September 2015',
-    },
-  };
-});
 jest.mock('../src/utils/logger.js', () => ({
   logger: {
     error: jest.fn(),
@@ -27,25 +20,63 @@ jest.mock('../src/utils/logger.js', () => ({
   },
 }));
 
+jest.mock('../src/utils/config.js', () => {
+  let config: AppConfig = {
+    networkPassphrase: 'Public Global Stellar Network ; September 2015',
+    fillerKeypair: Keypair.random(),
+    pools: [
+      {
+        poolAddress: 'POOL1',
+        primaryAsset: 'ASSET1',
+        minPrimaryCollateral: FixedMath.toFixed(100, 7),
+        minHealthFactor: 1.5,
+        defaultProfitPct: 0.1,
+        forceFill: true,
+        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
+        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
+      },
+      {
+        poolAddress: 'POOL2',
+        primaryAsset: 'ASSET1',
+        minPrimaryCollateral: FixedMath.toFixed(100, 7),
+        minHealthFactor: 1.5,
+        defaultProfitPct: 0.1,
+        forceFill: true,
+        supportedBid: ['ASSET3'],
+        supportedLot: ['ASSET0'],
+      },
+      {
+        poolAddress: 'POOL3',
+        primaryAsset: 'ASSET1',
+        minPrimaryCollateral: FixedMath.toFixed(100, 7),
+        minHealthFactor: 1.5,
+        defaultProfitPct: 0.1,
+        forceFill: true,
+        supportedBid: ['*'],
+        supportedLot: ['*'],
+      },
+    ],
+    profits: [
+      {
+        profitPct: 0.2,
+        supportedBid: ['ASSET0', 'ASSET1'],
+        supportedLot: ['ASSET1', 'ASSET3'],
+      },
+      {
+        profitPct: 0.3,
+        supportedBid: ['ASSET0', 'ASSET1'],
+        supportedLot: ['ASSET1', 'ASSET2'],
+      },
+    ],
+  } as AppConfig;
+  return {
+    APP_CONFIG: config,
+  };
+});
+
 describe('filler', () => {
   describe('canFillerBid', () => {
     it('returns true if the filler supports the auction', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([
           ['ASSET0', 100n],
@@ -58,26 +89,11 @@ describe('filler', () => {
         block: 123,
       };
 
-      const result = canFillerBid(filler, mockPool.id, auctionData);
+      const result = canFillerBid('POOL1', auctionData);
       expect(result).toBe(true);
     });
+
     it('returns false if the filler does not support the lot', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([
           ['ASSET0', 100n],
@@ -90,27 +106,11 @@ describe('filler', () => {
         block: 123,
       };
 
-      const result = canFillerBid(filler, mockPool.id, auctionData);
+      const result = canFillerBid('POOL1', auctionData);
       expect(result).toBe(false);
     });
 
     it('returns false if the filler does not support the bid', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([
           ['ASSET1', 100n],
@@ -123,26 +123,11 @@ describe('filler', () => {
         block: 123,
       };
 
-      const result = canFillerBid(filler, mockPool.id, auctionData);
+      const result = canFillerBid('POOL1', auctionData);
       expect(result).toBe(false);
     });
+
     it('returns false if the filler does not support the pool', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([
           ['ASSET1', 100n],
@@ -155,41 +140,40 @@ describe('filler', () => {
         block: 123,
       };
 
-      const result = canFillerBid(filler, 'UNKNOWN POOL', auctionData);
+      const result = canFillerBid('UNKNOWN POOL', auctionData);
       expect(result).toBe(false);
+    });
+
+    it('returns true with wildcards', () => {
+      const auctionData: AuctionData = {
+        bid: new Map<string, bigint>([
+          ['ASSET12345', 100n],
+          ['ASSET67890', 200n],
+        ]),
+        lot: new Map<string, bigint>([
+          ['ASSET12345', 100n],
+          ['ASSET67890', 200n],
+        ]),
+        block: 123,
+      };
+
+      const result = canFillerBid('POOL3', auctionData);
+      expect(result).toBe(true);
     });
   });
   describe('getFillerProfitPct', () => {
-    it('gets profitPct from profit config if available', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
+    const poolConfig: PoolConfig = {
+      poolAddress: 'POOL1',
+      primaryAsset: 'ASSET1',
+      minPrimaryCollateral: FixedMath.toFixed(100, 7),
+      minHealthFactor: 1.5,
+      defaultProfitPct: 0.1,
+      forceFill: true,
+      supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
+      supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
+    };
 
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
-      const profits: AuctionProfit[] = [
-        {
-          profitPct: 0.2,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET3'],
-        },
-        {
-          profitPct: 0.3,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET2'],
-        },
-      ];
+    it('gets profitPct from profit config if available', () => {
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([['ASSET0', 100n]]),
         lot: new Map<string, bigint>([
@@ -198,79 +182,22 @@ describe('filler', () => {
         ]),
         block: 123,
       };
-
-      const result = getFillerProfitPct(filler, profits, auctionData);
+      const result = getFillerProfitPct(poolConfig, auctionData);
       expect(result).toBe(0.3);
     });
 
     it('returns first matched profit', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
-      const profits: AuctionProfit[] = [
-        {
-          profitPct: 0.2,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET3'],
-        },
-        {
-          profitPct: 0.3,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET2'],
-        },
-      ];
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([['ASSET0', 100n]]),
         lot: new Map<string, bigint>([['ASSET1', 100n]]),
         block: 123,
       };
 
-      const result = getFillerProfitPct(filler, profits, auctionData);
+      const result = getFillerProfitPct(poolConfig, auctionData);
       expect(result).toBe(0.2);
     });
 
     it('returns default profit if bid does not match', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
-      const profits: AuctionProfit[] = [
-        {
-          profitPct: 0.2,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET3'],
-        },
-        {
-          profitPct: 0.3,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET2'],
-        },
-      ];
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([
           ['ASSET1', 100n],
@@ -280,39 +207,11 @@ describe('filler', () => {
         block: 123,
       };
 
-      const result = getFillerProfitPct(filler, profits, auctionData);
+      const result = getFillerProfitPct(poolConfig, auctionData);
       expect(result).toBe(0.1);
     });
 
     it('returns default profit if lot does not match', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
-      const profits: AuctionProfit[] = [
-        {
-          profitPct: 0.2,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET3'],
-        },
-        {
-          profitPct: 0.3,
-          supportedBid: ['ASSET0', 'ASSET1'],
-          supportedLot: ['ASSET1', 'ASSET2'],
-        },
-      ];
       const auctionData: AuctionData = {
         bid: new Map<string, bigint>([['ASSET0', 100n]]),
         lot: new Map<string, bigint>([
@@ -322,39 +221,7 @@ describe('filler', () => {
         block: 123,
       };
 
-      const result = getFillerProfitPct(filler, profits, auctionData);
-      expect(result).toBe(0.1);
-    });
-
-    it('returns default profit if no auction profits defined', () => {
-      const filler: Filler = {
-        name: 'Teapot',
-        keypair: Keypair.random(),
-
-        defaultProfitPct: 0.1,
-        supportedPools: [
-          {
-            poolAddress: mockPool.id,
-            primaryAsset: 'ASSET1',
-            minPrimaryCollateral: BigInt(100),
-            minHealthFactor: 1.5,
-            forceFill: true,
-          },
-        ],
-        supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-        supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-      };
-      const profits: AuctionProfit[] = [];
-      const auctionData: AuctionData = {
-        bid: new Map<string, bigint>([['ASSET0', 100n]]),
-        lot: new Map<string, bigint>([
-          ['ASSET1', 100n],
-          ['ASSET0', 200n],
-        ]),
-        block: 123,
-      };
-
-      const result = getFillerProfitPct(filler, profits, auctionData);
+      const result = getFillerProfitPct(poolConfig, auctionData);
       expect(result).toBe(0.1);
     });
   });
@@ -371,19 +238,13 @@ describe('filler', () => {
       7,
       53255053
     );
-    const filler: Filler = {
-      name: 'Teapot',
-      keypair: Keypair.random(),
+    const poolConfig: PoolConfig = {
       defaultProfitPct: 0.1,
-      supportedPools: [
-        {
-          poolAddress: mockPool.id,
-          primaryAsset: assets[1],
-          minPrimaryCollateral: FixedMath.toFixed(100, 7),
-          minHealthFactor: 1.5,
-          forceFill: true,
-        },
-      ],
+      poolAddress: mockPool.id,
+      primaryAsset: assets[1],
+      minPrimaryCollateral: FixedMath.toFixed(100, 7),
+      minHealthFactor: 1.5,
+      forceFill: true,
       supportedBid: [assets[1], assets[0]],
       supportedLot: [assets[1], assets[2], assets[3]],
     };
@@ -403,7 +264,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [
         {
@@ -435,7 +296,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [
         {
@@ -462,7 +323,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [
         {
@@ -475,7 +336,7 @@ describe('filler', () => {
     });
 
     it('can unwind looped positions', () => {
-      filler.supportedPools[0].minHealthFactor = 1.1;
+      poolConfig.minHealthFactor = 1.1;
       const positions = new Positions(
         // dTokens
         new Map<number, bigint>([[1, FixedMath.toFixed(50000, 7)]]),
@@ -490,9 +351,9 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
       // return minimum health factor back to 1.5
-      filler.supportedPools[0].minHealthFactor = 1.5;
+      poolConfig.minHealthFactor = 1.5;
 
       const expectedRequests: Request[] = [
         {
@@ -527,7 +388,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [
         {
@@ -559,7 +420,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [];
       expect(requests).toEqual(expectedRequests);
@@ -580,7 +441,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(0, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [];
       expect(requests).toEqual(expectedRequests);
@@ -607,7 +468,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(1, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [
         {
@@ -651,7 +512,7 @@ describe('filler', () => {
         [assets[3], FixedMath.toFixed(1, 7)],
       ]);
 
-      const requests = managePositions(filler, mockPool, mockOracle, positions, balances);
+      const requests = managePositions(poolConfig, mockPool, mockOracle, positions, balances);
 
       const expectedRequests: Request[] = [
         {

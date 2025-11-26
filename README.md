@@ -60,40 +60,29 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `backstopTokenAddress` | The address of the Blend backstop token contract. |
 | `usdcAddress` | The address of the USDC token contract. |
 | `blndAddress` | The address of the BLND token contract. |
-| `keypair` | The secret key for the bot's auction creating account. This should be different from the fillers as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
-| `pools` | A list of pool addresses that dicate what pools are monitored |
-| `fillers` | A list of accounts that will bid and fill on auctions. |
+| `interestFillerAddress` | A contract address used to help fill interest auctions. |
+| `workerKeypair` | The secret key for the bot's auction creating account. This should be different from the filler as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
+| `fillerKeypair` | The securet key for the bot's auction filler account. This should be different from the worker as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
+| `pools` | A list of pool configs that dictates what pools are monitored |
 | `priceSources` | (Optional) A list of assets that will have prices sourced from exchanges instead of the pool oracle. |
 | `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions.
 | `slackWebhook` | (Optional) A slack webhook URL to post updates to (https://hooks.slack.com/services/). Leave undefined if no webhooks are required. |
 | `discordWebhook` | (Optional) A Discord webhook URL to post updates to. Leave undefined if no webhooks are required. |
-| `interestFillerAddress` | (Optional) A contract address used to help fill interest auctions. |
 
+#### Pool Config
 
-#### Fillers
-
-The `fillers` array contains configurations for individual filler accounts. The account chosen to fill an auction is the first filler in the list that supports all bid and lot assets in the auction. Each filler has the following properties:
+The `pools` array contains configurations for individual pools to monitor. Each pool configuration has the following properties:
 
 | Field | Description |
 |-------|-------------|
-| `name` | A unique name for this filler account. Used in logs and slack notifications. |
-| `keypair` | The secret key for this filler account. **Keep this secret and secure!** |
-| `primaryAsset` | The primary asset the filler will use as collateral in the pool. | 
-| `defaultProfitPct` | The default profit percentage required for the filler to bid on an auction, as a decimal. (e.g. 0.08 = 8%) |
-| `supportedPools` | An array of configs that control what pools the filler can interact |
-| `supportedBid` | An array of asset addresses that this filler bot is allowed to bid with. Bids are taken as additional liabilities (dTokens) for liquidation and bad debt auctions, and tokens for interest auctions. Must include the `backstopTokenAddress` to bid on interest auctions. |
-| `supportedLot` | An array of asset addresses that this filler bot is allowed to receive. Lots are given as collateral (bTokens) for liquidation auctions and tokens for interest and bad debt auctions. The filler should have trustlines to all assets that are Stellar assets. Must include `backstopTokenAddress` to bid on bad debt auctions. |
-
-#### Pool Filler Configs
-The `PoolFillerConfig` array contains configurations for pools that are to be monitored.
-
-| Field | Description |
-|-------|-------------|
-| `poolAddress` | The address of the pool |
-| `primaryAsset` | The primary asset that will be used as collateral in the pool. | 
+| `poolAddress` | The address of the pool to monitor. |
 | `minPrimaryCollateral` | The minimum amount of the primary asset that is maintained as collateral in the pool. |
-| `minHealthFactor` | The minimum health factor the filler will take on during liquidation and bad debt auctions, as calculated by `collateral / liabilities`. |
+| `primaryAsset` | The primary asset the bot will use as collateral in the pool. |
+| `minHealthFactor` | The minimum health factor the bot will take on during liquidation and bad debt auctions, as calculated by `collateral / liabilities`. |
+| `defaultProfitPct` | The default profit percentage required to bid on an auction, as a decimal. (e.g. 0.08 = 8%) |
 | `forceFill` | Boolean flag to indicate if the bot should force fill auctions even if profit expectations aren't met to ensure pool health. |
+| `supportedBid` | An array of asset addresses that the bot is allowed to bid with. Bids are taken as additional liabilities (dTokens) for liquidation and bad debt auctions, and tokens for interest auctions. Must include the `backstopTokenAddress` to bid on interest auctions. |
+| `supportedLot` | An array of asset addresses that the bot is allowed to receive. Lots are given as collateral (bTokens) for liquidation auctions and tokens for interest and bad debt auctions. The bot should have trustlines to all assets that are Stellar assets. Must include `backstopTokenAddress` to bid on bad debt auctions. |
 
 #### Price Sources
 

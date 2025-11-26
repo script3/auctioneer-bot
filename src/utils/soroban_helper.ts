@@ -259,16 +259,23 @@ export class SorobanHelper {
     }
   }
 
-  async simLPTokenToUSDC(backstopAddress: string, amount: bigint): Promise<bigint | undefined> {
+  /**
+   * Fetch the amount of USDC required to mint "lp_tokens" of LP tokens
+   * @param lp_tokens The amount of LP tokens to simulate minting
+   * @returns The amount of USDC required to mint the LP tokens, or undefined if the simulation failed
+   */
+  async simLPTokensGetUSDCIn(lp_tokens: bigint): Promise<bigint | undefined> {
     try {
       let comet = new Contract(APP_CONFIG.backstopTokenAddress);
       let op = comet.call(
-        'wdr_tokn_amt_in_get_lp_tokns_out',
+        'dep_lp_tokn_amt_out_get_tokn_in',
         ...[
           nativeToScVal(APP_CONFIG.usdcAddress, { type: 'address' }),
-          nativeToScVal(amount, { type: 'i128' }),
-          nativeToScVal(0, { type: 'i128' }),
-          nativeToScVal(backstopAddress, { type: 'address' }),
+          nativeToScVal(lp_tokens, { type: 'i128' }),
+          nativeToScVal(1_000_000_0000000, { type: 'i128' }),
+          nativeToScVal(APP_CONFIG.backstopTokenAddress, {
+            type: 'address',
+          }),
         ]
       );
       let account = new Account(Keypair.random().publicKey(), '123');
@@ -284,8 +291,66 @@ export class SorobanHelper {
       let result = await stellarRpc.simulateTransaction(tx);
       if (rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
         return scValToNative(result.result.retval);
+      } else if (rpc.Api.isSimulationError(result)) {
+        logger.error(
+          `Simulation failed for simLPTokensGetUSDCIn with lp_tokens: ${lp_tokens}`,
+          result?.error
+        );
+        return undefined;
+      } else {
+        logger.error(
+          `Unknown simulation result for simLPTokensGetUSDCIn with lp_tokens: ${lp_tokens}`
+        );
+        return undefined;
       }
+    } catch (e) {
+      logger.error(`Error calculating comet token value: ${e}`);
       return undefined;
+    }
+  }
+
+  /**
+   * Fetch the amount of USDC that would be received by withdrawing "lp_tokens" of LP tokens
+   * @param lp_tokens The amount of LP tokens withdrawing
+   * @returns The amount of USDC that would be received by withdrawing the LP tokens, or undefined if the simulation failed
+   */
+  async simLPTokensToUSDC(lp_tokens: bigint): Promise<bigint | undefined> {
+    try {
+      let comet = new Contract(APP_CONFIG.backstopTokenAddress);
+      let op = comet.call(
+        'wdr_tokn_amt_in_get_lp_tokns_out',
+        ...[
+          nativeToScVal(APP_CONFIG.usdcAddress, { type: 'address' }),
+          nativeToScVal(lp_tokens, { type: 'i128' }),
+          nativeToScVal(0, { type: 'i128' }),
+          nativeToScVal(APP_CONFIG.backstopAddress, { type: 'address' }),
+        ]
+      );
+      let account = new Account(Keypair.random().publicKey(), '123');
+      let tx = new TransactionBuilder(account, {
+        networkPassphrase: this.network.passphrase,
+        fee: BASE_FEE,
+        timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 5 * 60 * 1000 },
+      })
+        .addOperation(op)
+        .build();
+      let stellarRpc = new rpc.Server(this.network.rpc, this.network.opts);
+
+      let result = await stellarRpc.simulateTransaction(tx);
+      if (rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
+        return scValToNative(result.result.retval);
+      } else if (rpc.Api.isSimulationError(result)) {
+        logger.error(
+          `Simulation failed for simLPTokensToUSDC with lp_tokens: ${lp_tokens}`,
+          result?.error
+        );
+        return undefined;
+      } else {
+        logger.error(
+          `Unknown simulation result for simLPTokensToUSDC with lp_tokens: ${lp_tokens}`
+        );
+        return undefined;
+      }
     } catch (e) {
       logger.error(`Error calculating comet token value: ${e}`);
       return undefined;
@@ -315,6 +380,36 @@ export class SorobanHelper {
     } catch (e) {
       logger.error(`Error fetching balance: ${e}`);
       return 0n;
+    }
+  }
+
+  /**
+   * Fetch the owner of the Interest Filler contract
+   * @returns The owner address or undefined if the simulation failed
+   */
+  async simInterestFillerOwner(): Promise<string | undefined> {
+    try {
+      let contract = new Contract(APP_CONFIG.interestFillerAddress);
+      let op = contract.call('get_owner', ...[]);
+      let account = new Account(Keypair.random().publicKey(), '123');
+      let tx = new TransactionBuilder(account, {
+        networkPassphrase: this.network.passphrase,
+        fee: BASE_FEE,
+        timebounds: { minTime: 0, maxTime: Math.floor(Date.now() / 1000) + 5 * 60 * 1000 },
+      })
+        .addOperation(op)
+        .build();
+      let stellarRpc = new rpc.Server(this.network.rpc, this.network.opts);
+
+      let result = await stellarRpc.simulateTransaction(tx);
+      if (rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
+        return scValToNative(result.result.retval);
+      } else {
+        return undefined;
+      }
+    } catch (e) {
+      logger.error(`Error fetching interest filler owner: ${e}`);
+      return undefined;
     }
   }
 

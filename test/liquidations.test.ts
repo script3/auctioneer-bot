@@ -44,7 +44,14 @@ jest.mock('../src/utils/config.js', () => {
     APP_CONFIG: {
       backstopAddress: 'backstopAddress',
       backstopTokenAddress: 'backstopTokenAddress',
-      pools: ['pool1', 'pool2'],
+      pools: [
+        {
+          poolAddress: 'pool1',
+        },
+        {
+          poolAddress: 'pool2',
+        },
+      ],
     },
   };
 });

@@ -6,7 +6,7 @@ import { AuctioneerDatabase, AuctionType, UserEntry } from '../src/utils/db';
 import { SorobanHelper } from '../src/utils/soroban_helper';
 import { WorkHandler } from '../src/work_handler';
 import { WorkSubmission, WorkSubmissionType, WorkSubmitter } from '../src/work_submitter';
-import { AppConfig, APP_CONFIG } from '../src/utils/config';
+import { AppConfig, APP_CONFIG, PoolConfig } from '../src/utils/config';
 
 jest.mock('../src/utils/prices');
 jest.mock('../src/liquidations');
@@ -16,12 +16,20 @@ jest.mock('../src/utils/logger');
 jest.mock('../src/utils/soroban_helper');
 jest.mock('../src/utils/config.js', () => {
   let config: AppConfig = {
-    pools: ['pool1', 'pool2'],
+    pools: [
+      {
+        poolAddress: 'pool1',
+      } as PoolConfig,
+      {
+        poolAddress: 'pool2',
+      } as PoolConfig,
+    ],
   } as AppConfig;
   return {
     APP_CONFIG: config,
   };
 });
+
 describe('WorkHandler', () => {
   let db: jest.Mocked<AuctioneerDatabase>;
   let submissionQueue: jest.Mocked<WorkSubmitter>;
@@ -81,7 +89,7 @@ describe('WorkHandler', () => {
     ];
     const liquidations: WorkSubmission[] = [
       {
-        poolId: APP_CONFIG.pools[0],
+        poolId: APP_CONFIG.pools[0].poolAddress,
         user: 'user1',
         type: WorkSubmissionType.AuctionCreation,
         auctionType: AuctionType.Liquidation,
@@ -90,7 +98,7 @@ describe('WorkHandler', () => {
         auctionPercent: 10,
       },
       {
-        poolId: APP_CONFIG.pools[1],
+        poolId: APP_CONFIG.pools[1].poolAddress,
         user: 'user1',
         type: WorkSubmissionType.AuctionCreation,
         auctionType: AuctionType.Liquidation,
@@ -107,13 +115,16 @@ describe('WorkHandler', () => {
 
     await workHandler.processEvent(appEvent);
     expect(oracleHistory.getSignificantPriceChanges).toHaveBeenCalledWith(poolOracle);
-    for (const poolId of APP_CONFIG.pools) {
-      expect(sorobanHelper.loadPoolOracle).toHaveBeenCalledWith(poolId);
-      expect(db.getUserEntriesWithLiability).toHaveBeenCalledWith(poolId, 'asset1');
-      expect(db.getUserEntriesWithCollateral).toHaveBeenCalledWith(poolId, 'asset2');
-      expect(checkUsersForLiquidationsAndBadDebt).toHaveBeenCalledWith(db, sorobanHelper, poolId, [
-        usersWithCollateral[0].user_id,
-      ]);
+    for (const { poolAddress } of APP_CONFIG.pools) {
+      expect(sorobanHelper.loadPoolOracle).toHaveBeenCalledWith(poolAddress);
+      expect(db.getUserEntriesWithLiability).toHaveBeenCalledWith(poolAddress, 'asset1');
+      expect(db.getUserEntriesWithCollateral).toHaveBeenCalledWith(poolAddress, 'asset2');
+      expect(checkUsersForLiquidationsAndBadDebt).toHaveBeenCalledWith(
+        db,
+        sorobanHelper,
+        poolAddress,
+        [usersWithCollateral[0].user_id]
+      );
     }
     expect(submissionQueue.addSubmission).toHaveBeenCalledWith(liquidations[0], 3);
     expect(submissionQueue.addSubmission).toHaveBeenCalledWith(liquidations[1], 3);

@@ -15,6 +15,7 @@ import { SorobanHelper } from '../src/utils/soroban_helper.js';
 import { WorkSubmissionType } from '../src/work_submitter.js';
 import { ReserveConfig } from '@blend-capital/blend-sdk';
 import { checkPoolForInterestAuction } from '../src/interest.js';
+import { PoolConfig } from '../src/utils/config.js';
 
 jest.mock('../src/utils/soroban_helper.js');
 jest.mock('../src/utils/logger.js', () => ({
@@ -28,42 +29,7 @@ jest.mock('../src/utils/config.js', () => {
     APP_CONFIG: {
       backstopAddress: 'backstopAddress',
       backstopTokenAddress: 'backstopTokenAddress',
-      pools: ['pool1', 'pool2'],
-      fillers: [
-        {
-          name: 'filler1',
-          keypair: Keypair.random(),
-          defaultProfitPct: 0.05,
-          supportedPools: [
-            {
-              poolAddress: 'pool1',
-              minPrimaryCollateral: FixedMath.toFixed(100, 7),
-              primaryAsset: 'USD',
-              minHealthFactor: 1.1,
-              forceFill: true,
-            },
-          ],
-          supportedBid: ['asset1', 'asset2', 'asset3', 'backstopTokenAddress'],
-          supportedLot: ['asset1', 'asset2', 'asset3'],
-        },
-        {
-          name: 'filler2',
-          keypair: Keypair.random(),
-          defaultProfitPct: 0.08,
-
-          supportedPools: [
-            {
-              poolAddress: 'pool2',
-              minPrimaryCollateral: FixedMath.toFixed(100, 7),
-              primaryAsset: 'USD',
-              minHealthFactor: 1.1,
-              forceFill: true,
-            },
-          ],
-          supportedBid: ['asset1', 'asset2', 'asset3', 'asset4', 'backstopTokenAddress'],
-          supportedLot: ['asset1', 'asset2', 'asset3', 'asset4'],
-        },
-      ],
+      fillerKeypair: Keypair.random(),
     },
   };
 });
@@ -71,12 +37,23 @@ jest.mock('../src/utils/config.js', () => {
 describe('checkPoolForInterestAuction', () => {
   let mockedSorobanHelper: jest.Mocked<SorobanHelper>;
   let mockBackstopToken: BackstopToken;
+  let poolConfig: PoolConfig;
 
   beforeEach(() => {
     mockedSorobanHelper = new SorobanHelper() as jest.Mocked<SorobanHelper>;
     mockBackstopToken = {
       lpTokenPrice: 0.5,
     } as BackstopToken;
+    poolConfig = {
+      poolAddress: 'pool1',
+      minPrimaryCollateral: FixedMath.toFixed(100, 7),
+      primaryAsset: 'USD',
+      minHealthFactor: 1.1,
+      defaultProfitPct: 0.05,
+      forceFill: true,
+      supportedBid: ['asset1', 'asset2', 'asset3', 'backstopTokenAddress'],
+      supportedLot: ['asset1', 'asset2', 'asset3'],
+    };
   });
 
   it('returns interest auction creation submission happy path', async () => {
@@ -93,10 +70,10 @@ describe('checkPoolForInterestAuction', () => {
     mockedSorobanHelper.loadPoolOracle.mockResolvedValue(poolOracle);
     mockedSorobanHelper.loadBackstopToken.mockResolvedValue(mockBackstopToken);
 
-    // backstop token balance for filler
+    // usdc balance for filler
     mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(1000e7));
 
-    const result = await checkPoolForInterestAuction(mockedSorobanHelper, 'pool1');
+    const result = await checkPoolForInterestAuction(mockedSorobanHelper, poolConfig);
 
     expect(result).toEqual({
       type: WorkSubmissionType.AuctionCreation,
@@ -108,7 +85,8 @@ describe('checkPoolForInterestAuction', () => {
       lot: ['asset3', 'asset1'],
     });
   });
-  it('returns undefined if filler does not have enough backstop tokens', async () => {
+
+  it('returns undefined if filler does not have enough usdc', async () => {
     const assets = ['asset1', 'asset2', 'asset3'];
 
     const backstopCredit = [BigInt(100e7), BigInt(2e7), BigInt(300e7)];
@@ -122,15 +100,16 @@ describe('checkPoolForInterestAuction', () => {
     mockedSorobanHelper.loadPoolOracle.mockResolvedValue(poolOracle);
     mockedSorobanHelper.loadBackstopToken.mockResolvedValue(mockBackstopToken);
 
-    // backstop token balance for filler
-    // -> auctionv val is ~325, need 650 LP tokens at 0.5 price
-    mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(600e7));
+    // usdc balance for filler
+    // -> auctionv val is ~301
+    mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(300e7));
 
-    const result = await checkPoolForInterestAuction(mockedSorobanHelper, 'pool1');
+    const result = await checkPoolForInterestAuction(mockedSorobanHelper, poolConfig);
 
     expect(result).toBeUndefined();
   });
-  it('returns undefined if no filler supports included assets', async () => {
+
+  it('returns undefined if config does not support included assets', async () => {
     const assets = ['asset1', 'asset2', 'asset3', 'asset4'];
 
     const backstopCredit = [BigInt(100e7), BigInt(2e7), BigInt(300e7), BigInt(100e7)];
@@ -144,15 +123,19 @@ describe('checkPoolForInterestAuction', () => {
     mockedSorobanHelper.loadPoolOracle.mockResolvedValue(poolOracle);
     mockedSorobanHelper.loadBackstopToken.mockResolvedValue(mockBackstopToken);
 
-    // backstop token balance for filler
+    // usdc balance for filler
     mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(5000e7));
 
-    const result = await checkPoolForInterestAuction(mockedSorobanHelper, 'pool1');
+    const result = await checkPoolForInterestAuction(mockedSorobanHelper, poolConfig);
 
     expect(result).toBeUndefined();
   });
+
   it('returns interest auction creation submission max 3 assets', async () => {
     const assets = ['asset1', 'asset2', 'asset3', 'asset4'];
+
+    poolConfig.poolAddress = 'pool2';
+    poolConfig.supportedLot = assets;
 
     const backstopCredit = [BigInt(105e7), BigInt(10e7), BigInt(200e7), BigInt(100e7)];
     const decimals = [7, 7, 7, 7];
@@ -168,7 +151,7 @@ describe('checkPoolForInterestAuction', () => {
     // backstop token balance for filler
     mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(1000e7));
 
-    const result = await checkPoolForInterestAuction(mockedSorobanHelper, 'pool2');
+    const result = await checkPoolForInterestAuction(mockedSorobanHelper, poolConfig);
 
     expect(result).toEqual({
       type: WorkSubmissionType.AuctionCreation,
@@ -180,8 +163,12 @@ describe('checkPoolForInterestAuction', () => {
       lot: ['asset4', 'asset1', 'asset3'],
     });
   });
+
   it('returns interest auction creation submission respects pool max positions', async () => {
     const assets = ['asset1', 'asset2', 'asset3', 'asset4'];
+
+    poolConfig.poolAddress = 'pool2';
+    poolConfig.supportedLot = assets;
 
     const backstopCredit = [BigInt(105e7), BigInt(10e7), BigInt(200e7), BigInt(100e7)];
     const decimals = [7, 7, 7, 7];
@@ -198,7 +185,7 @@ describe('checkPoolForInterestAuction', () => {
     // backstop token balance for filler
     mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(1000e7));
 
-    const result = await checkPoolForInterestAuction(mockedSorobanHelper, 'pool2');
+    const result = await checkPoolForInterestAuction(mockedSorobanHelper, poolConfig);
 
     expect(result).toEqual({
       type: WorkSubmissionType.AuctionCreation,
@@ -210,8 +197,12 @@ describe('checkPoolForInterestAuction', () => {
       lot: ['asset4', 'asset1'],
     });
   });
+
   it('returns undefined respects pool max positions', async () => {
     const assets = ['asset1', 'asset2', 'asset3', 'asset4'];
+
+    poolConfig.poolAddress = 'pool2';
+    poolConfig.supportedLot = assets;
 
     const backstopCredit = [BigInt(105e7), BigInt(10e7), BigInt(200e7), BigInt(60e7)];
     const decimals = [7, 7, 7, 7];
@@ -228,7 +219,7 @@ describe('checkPoolForInterestAuction', () => {
     // backstop token balance for filler
     mockedSorobanHelper.simBalance.mockResolvedValue(BigInt(1000e7));
 
-    const result = await checkPoolForInterestAuction(mockedSorobanHelper, 'pool2');
+    const result = await checkPoolForInterestAuction(mockedSorobanHelper, poolConfig);
 
     expect(result).toBeUndefined();
   });
