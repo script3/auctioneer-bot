@@ -246,19 +246,19 @@ export async function scanUsers(
       logger.info(
         `Scanning ${users.length} users for liquidations in pool: ${poolConfig.poolAddress}`
       );
+      submissions.push(
+        ...(await checkUsersForLiquidationsAndBadDebt(
+          db,
+          sorobanHelper,
+          poolConfig.poolAddress,
+          users
+        ))
+      );
     } catch (e) {
       const errorLog = `Error scanning for liquidations: ${poolConfig.poolAddress}\nError: ${e}`;
       logger.error(errorLog);
       sendNotification(errorLog);
     }
-    submissions.push(
-      ...(await checkUsersForLiquidationsAndBadDebt(
-        db,
-        sorobanHelper,
-        poolConfig.poolAddress,
-        users
-      ))
-    );
   }
   return submissions;
 }
