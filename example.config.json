@@ -7,22 +7,17 @@
   "backstopTokenAddress": "CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM",
   "usdcAddress": "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
   "blndAddress": "CD25MNVTZDL4Y3XBCPCJXGXATV5WUHHOWMYFF4YBEGU5FCPGMYTVG5JY",
-  "keypair": "S...",
-  "pools": ["C....", "C...."],
-  "fillers": [
+  "interestFillerAddress": "C...",
+  "workerKeypair": "S...",
+  "fillerKeypair": "S...",
+  "pools": [
     {
-      "name": "example-liquidator",
-      "keypair": "S...",
+      "poolAddress": "CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP",
+      "primaryAsset": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+      "minPrimaryCollateral": "1000000000000",
+      "minHealthFactor": 1.5,
       "defaultProfitPct": 0.1,
-      "supportedPools": [
-        {
-          "poolAddress": "CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP",
-          "primaryAsset": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
-          "minPrimaryCollateral": "1000000000000",
-          "minHealthFactor": 1.5,
-          "forceFill": true
-        }
-      ],
+      "forceFill": true,
       "supportedBid": [
         "CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM",
         "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
@@ -39,13 +34,9 @@
     {
       "profitPct": 0.05,
       "supportedBid": [
-        "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
-        "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75"
+        "CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM"
       ],
-      "supportedLot": [
-        "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
-        "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75"
-      ]
+      "supportedLot": ["*"]
     }
   ],
   "priceSources": [

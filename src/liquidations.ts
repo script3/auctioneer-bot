@@ -239,12 +239,26 @@ export async function scanUsers(
   }
 
   let submissions: WorkSubmission[] = [];
-  for (const pool of APP_CONFIG.pools) {
-    const users = userPoolMap.get(pool) || [];
+  for (const poolConfig of APP_CONFIG.pools) {
+    const users = userPoolMap.get(poolConfig.poolAddress) || [];
     users.push(APP_CONFIG.backstopAddress);
-    submissions.push(
-      ...(await checkUsersForLiquidationsAndBadDebt(db, sorobanHelper, pool, users))
-    );
+    try {
+      logger.info(
+        `Scanning ${users.length} users for liquidations in pool: ${poolConfig.poolAddress}`
+      );
+      submissions.push(
+        ...(await checkUsersForLiquidationsAndBadDebt(
+          db,
+          sorobanHelper,
+          poolConfig.poolAddress,
+          users
+        ))
+      );
+    } catch (e) {
+      const errorLog = `Error scanning for liquidations: ${poolConfig.poolAddress}\nError: ${e}`;
+      logger.error(errorLog);
+      sendNotification(errorLog);
+    }
   }
   return submissions;
 }
@@ -263,6 +277,7 @@ export async function checkUsersForLiquidationsAndBadDebt(
   user_ids: string[]
 ): Promise<WorkSubmission[]> {
   const pool = await sorobanHelper.loadPool(poolId);
+  const oracle = await sorobanHelper.loadPoolOracle(poolId);
   logger.info(`Checking ${user_ids.length} users for liquidations..`);
   let submissions: WorkSubmission[] = [];
   for (let user of user_ids) {
@@ -296,7 +311,6 @@ export async function checkUsersForLiquidationsAndBadDebt(
       ) {
         const { estimate: poolUserEstimate, user: poolUser } =
           await sorobanHelper.loadUserPositionEstimate(poolId, user);
-        const oracle = await sorobanHelper.loadPoolOracle(poolId);
         updateUser(db, pool, poolUser, poolUserEstimate);
         if (isLiquidatable(poolUserEstimate)) {
           const newLiq = calculateLiquidation(pool, poolUser.positions, poolUserEstimate, oracle);
@@ -324,7 +338,6 @@ export async function checkUsersForLiquidationsAndBadDebt(
         `User: ${user}\n` +
         `Error: ${e}`;
       logger.error(errorLog);
-      sendNotification(errorLog);
     }
   }
   return submissions;

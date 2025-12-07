@@ -27,10 +27,6 @@ async function main() {
           `Finished: ${message?.data} in ${Date.now() - timer}ms with delay ${timer - appEvent.timestamp}ms`
         );
       } catch (err) {
-        if (appEvent.type === EventType.VALIDATE_POOLS) {
-          logger.error(err);
-          throw err;
-        }
         logger.error(`Unexpected error in worker for ${message?.data}`, err);
         await deadletterEvent(appEvent);
       }

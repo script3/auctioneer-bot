@@ -1,21 +1,21 @@
-import { FixedMath, PoolContractV2 } from '@blend-capital/blend-sdk';
-import { Address, Contract, nativeToScVal, rpc } from '@stellar/stellar-sdk';
+import { FixedMath, PoolContractV2, ScaledAuction } from '@blend-capital/blend-sdk';
+import { rpc, scValToNative } from '@stellar/stellar-sdk';
 import { calculateAuctionFill } from './auction.js';
 import { getFillerAvailableBalances, managePositions } from './filler.js';
-import { APP_CONFIG, Filler } from './utils/config.js';
+import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { serializeError, stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
+import { InterestFillerContract } from './utils/interest_filler.js';
 
-export type BidderSubmission = AuctionBid | FillerUnwind | AddAllowance;
+export type BidderSubmission = AuctionBid | FillerUnwind;
 
 export enum BidderSubmissionType {
   BID = 'bid',
   UNWIND = 'unwind',
-  ADD_ALLOWANCE = 'add_allowance',
 }
 
 export interface BaseBidderSubmission {
@@ -24,25 +24,13 @@ export interface BaseBidderSubmission {
 
 export interface AuctionBid extends BaseBidderSubmission {
   type: BidderSubmissionType.BID;
-  filler: Filler;
   auctionEntry: AuctionEntry;
 }
 
 export interface FillerUnwind extends BaseBidderSubmission {
   type: BidderSubmissionType.UNWIND;
   poolId: string;
-  filler: Filler;
-}
-
-/**
- * Event to check for allowance updates.
- */
-export interface AddAllowance extends BaseBidderSubmission {
-  type: BidderSubmissionType.ADD_ALLOWANCE;
-  filler: Filler;
-  assetId: string;
-  spender: string;
-  currLedger: number;
+  filledAuction: ScaledAuction;
 }
 
 export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
@@ -78,8 +66,6 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         return this.submitBid(sorobanHelper, submission);
       case BidderSubmissionType.UNWIND:
         return this.submitUnwind(sorobanHelper, submission);
-      case BidderSubmissionType.ADD_ALLOWANCE:
-        return this.submitAddAllowance(sorobanHelper, submission);
       default:
         logger.error(`Invalid submission type: ${stringify(submission)}`);
         // consume the submission
@@ -109,9 +95,16 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         return true;
       }
 
+      const poolConfig = APP_CONFIG.pools.find(
+        (p) => p.poolAddress === auctionBid.auctionEntry.pool_id
+      );
+      if (!poolConfig) {
+        // allow bidder handler to re-process the auction entry
+        return true;
+      }
+
       const fill = await calculateAuctionFill(
-        auctionBid.auctionEntry.pool_id,
-        auctionBid.filler,
+        poolConfig,
         auction,
         nextLedger,
         sorobanHelper,
@@ -121,21 +114,41 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       if (nextLedger >= fill.block) {
         const pool = new PoolContractV2(auctionBid.auctionEntry.pool_id);
         const est_profit = fill.lotValue - fill.bidValue;
-        // include high inclusion fee if the esimated profit is over $10
+        // include high inclusion fee if the estimated profit is over $10
         if (est_profit > 10) {
           // this object gets recreated every time, so no need to reset the fee level
           sorobanHelper.setFeeLevel('high');
         }
-
-        const result = await sorobanHelper.submitTransaction(
-          pool.submit({
-            from: auctionBid.auctionEntry.filler,
-            spender: auctionBid.auctionEntry.filler,
-            to: auctionBid.auctionEntry.filler,
-            requests: fill.requests,
-          }),
-          auctionBid.filler.keypair
-        );
+        let result;
+        // use the interest auction filler if it exists and the auction is an interest auction
+        if (
+          APP_CONFIG.interestFillerAddress !== undefined &&
+          APP_CONFIG.interestFillerAddress !== '' &&
+          auctionBid.auctionEntry.auction_type == AuctionType.Interest &&
+          fill.percent === 100
+        ) {
+          logger.info(`Using interest auction filler contract ${APP_CONFIG.interestFillerAddress}`);
+          const filler_contract = new InterestFillerContract(APP_CONFIG.interestFillerAddress);
+          result = await sorobanHelper.submitTransaction(
+            filler_contract.fill_interest(
+              auctionBid.auctionEntry.filler,
+              auctionBid.auctionEntry.pool_id,
+              fill.percent,
+              FixedMath.toFixed(fill.bidValue * 1.01)
+            ),
+            APP_CONFIG.fillerKeypair
+          );
+        } else {
+          result = await sorobanHelper.submitTransaction(
+            pool.submit({
+              from: auctionBid.auctionEntry.filler,
+              spender: auctionBid.auctionEntry.filler,
+              to: auctionBid.auctionEntry.filler,
+              requests: fill.requests,
+            }),
+            APP_CONFIG.fillerKeypair
+          );
+        }
         const [scaledAuction] = auction.scale(result.ledger, fill.percent);
         this.db.setFilledAuctionEntry({
           tx_hash: result.txHash,
@@ -154,8 +167,8 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         this.addSubmission(
           {
             type: BidderSubmissionType.UNWIND,
-            filler: auctionBid.filler,
             poolId: auctionBid.auctionEntry.pool_id,
+            filledAuction: scaledAuction,
           },
           2
         );
@@ -164,7 +177,7 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           `Type: ${AuctionType[auctionBid.auctionEntry.auction_type]}\n` +
           `Pool: ${auctionBid.auctionEntry.pool_id}\n` +
           `User: ${auctionBid.auctionEntry.user_id}\n` +
-          `Filler: ${auctionBid.filler.name}\n` +
+          `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
           `Fill Percent ${fill.percent}\n` +
           `Ledger Fill Delta ${result.ledger - auctionBid.auctionEntry.start_block}\n` +
           `Hash ${result.txHash}\n`;
@@ -174,10 +187,10 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
       } else {
         logger.info(
           `Fill ledger not reached for auction bid\n` +
-          `Type: ${auctionBid.auctionEntry.auction_type}\n` +
-          `Pool: ${auctionBid.auctionEntry.pool_id}\n` +
-          `User: ${auctionBid.auctionEntry.user_id}\n` +
-          `Fill Ledger: ${fill.block} Next Ledger: ${nextLedger}`
+            `Type: ${auctionBid.auctionEntry.auction_type}\n` +
+            `Pool: ${auctionBid.auctionEntry.pool_id}\n` +
+            `User: ${auctionBid.auctionEntry.user_id}\n` +
+            `Fill Ledger: ${fill.block} Next Ledger: ${nextLedger}`
         );
       }
       // allow bidder handler to re-process the auction entry
@@ -188,7 +201,7 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         `Type: ${AuctionType[auctionBid.auctionEntry.auction_type]}\n` +
         `Pool: ${auctionBid.auctionEntry.pool_id}\n` +
         `User: ${auctionBid.auctionEntry.user_id}\n` +
-        `Filler: ${auctionBid.filler.name}\n` +
+        `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
         `Error: ${stringify(serializeError(e))}`;
       await sendNotification(logMessage, true);
       logger.error(logMessage, e);
@@ -197,155 +210,122 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
   }
 
   async submitUnwind(sorobanHelper: SorobanHelper, fillerUnwind: FillerUnwind): Promise<boolean> {
-    logger.info(`Submitting unwind for filler ${fillerUnwind.filler.keypair.publicKey()}`);
-    const filler_pubkey = fillerUnwind.filler.keypair.publicKey();
-    const fillerPrimaryAsset = fillerUnwind.filler.supportedPools.find(
-      (pool) => pool.poolAddress === fillerUnwind.poolId
-    )?.primaryAsset;
-    if (!fillerPrimaryAsset) {
-      logger.error(
-        `Filler ${fillerUnwind.filler.name} does not support pool: ${fillerUnwind.poolId}`
-      );
-      return false;
-    }
-    const filler_tokens = [
-      ...new Set([
-        fillerPrimaryAsset,
-        ...fillerUnwind.filler.supportedBid,
-        ...fillerUnwind.filler.supportedLot,
-      ]),
-    ];
-    const pool = await sorobanHelper.loadPool(fillerUnwind.poolId);
-    const poolOracle = await sorobanHelper.loadPoolOracle(fillerUnwind.poolId);
-    const filler_user = await sorobanHelper.loadUser(fillerUnwind.poolId, filler_pubkey);
-    const filler_balances = await getFillerAvailableBalances(
-      fillerUnwind.filler,
-      filler_tokens,
-      sorobanHelper
+    logger.info(
+      `Submitting unwind for filler ${APP_CONFIG.fillerKeypair.publicKey()} for auction type ${AuctionType[fillerUnwind.filledAuction.type]} in pool ${fillerUnwind.poolId}`
     );
 
-    // Unwind the filler one step at a time. If the filler is not unwound, place another `FillerUnwind` event on the submission queue.
-    // To unwind the filler, the following actions will be taken in order:
-    // 1. Unwind the filler's pool position by paying off all liabilities with current balances and withdrawing all possible collateral,
-    //    down to either the min_collateral or min_health_factor.
-    // TODO: Add trading functionality for 2, 3
-    // 2. If no positions can be modified, and the filler still has outstanding liabilities, attempt to purchase the liability tokens
-    //    with USDC.
-    // 3. If there are no liabilities, attempt to sell un-needed tokens for USDC
-    // 4. If this case is reached, stop sending unwind events for the filler.
-
-    // 1
-    let requests = managePositions(
-      fillerUnwind.filler,
-      pool,
-      poolOracle,
-      filler_user.positions,
-      filler_balances
-    );
-    if (requests.length > 0) {
-      logger.info('Unwind found positions to manage', requests);
-      // some positions to manage - submit the transaction
-      const pool = new PoolContractV2(fillerUnwind.poolId);
-      const result = await sorobanHelper.submitTransaction(
-        pool.submit({
-          from: filler_pubkey,
-          spender: filler_pubkey,
-          to: filler_pubkey,
-          requests: requests,
-        }),
-        fillerUnwind.filler.keypair
-      );
-      logger.info(
-        `Successful unwind for filler: ${fillerUnwind.filler.name}\n` +
-        `Pool: ${fillerUnwind.poolId}\n` +
-        `Ledger: ${result.ledger}\n` +
-        `Hash: ${result.txHash}`
-      );
-      this.addSubmission(
-        {
-          type: BidderSubmissionType.UNWIND,
-          filler: fillerUnwind.filler,
-          poolId: fillerUnwind.poolId,
-        },
-        2
-      );
-      return true;
-    }
-
-    // notify slack if the filler supports interest auctions and has low backstop token balance
-    if (fillerUnwind.filler.supportedBid.includes(APP_CONFIG.backstopTokenAddress)) {
-      const backstopTokenBalance = filler_balances.get(APP_CONFIG.backstopTokenAddress);
-      const backstopToken = await sorobanHelper.loadBackstopToken();
-      const tokenBalanceFloat = FixedMath.toFloat(backstopTokenBalance ?? BigInt(0));
-      if (tokenBalanceFloat * backstopToken.lpTokenPrice < 300) {
-        const logMessage =
-          `Filler has low balance of backstop tokens\n` +
-          `Filler: ${fillerUnwind.filler.name}\n` +
-          `Backstop Token Balance: ${tokenBalanceFloat}`;
-        logger.info(logMessage);
-        await sendNotification(logMessage);
+    switch (fillerUnwind.filledAuction.type) {
+      case AuctionType.Interest: {
+        // claim tokens from the interest auction filler contract
+        const lot_tokens = Array.from(fillerUnwind.filledAuction.data.lot.keys());
+        const interest_filler_contract = new InterestFillerContract(
+          APP_CONFIG.interestFillerAddress
+        );
+        const op = interest_filler_contract.claim(APP_CONFIG.fillerKeypair.publicKey(), lot_tokens);
+        const result = await sorobanHelper.submitTransaction(op, APP_CONFIG.fillerKeypair);
+        let returnVal = undefined;
+        if (result.returnValue !== undefined) {
+          returnVal = scValToNative(result.returnValue);
+        }
+        logger.info(
+          `Successful claim from interest filler contract for filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
+            `Pool: ${fillerUnwind.poolId}\n` +
+            `Ledger: ${result.ledger}\n` +
+            `Hash: ${result.txHash}\n` +
+            `Return Value: ${stringify(returnVal)}`
+        );
+        break;
       }
-    }
+      case AuctionType.Liquidation:
+      case AuctionType.BadDebt: {
+        const filler_pubkey = APP_CONFIG.fillerKeypair.publicKey();
+        const poolConfig = APP_CONFIG.pools.find(
+          (pool) => pool.poolAddress === fillerUnwind.poolId
+        );
+        if (!poolConfig) {
+          logger.error(
+            `Filler ${APP_CONFIG.fillerKeypair.publicKey()} does not support pool: ${fillerUnwind.poolId}`
+          );
+          return false;
+        }
+        const pool = await sorobanHelper.loadPool(fillerUnwind.poolId);
+        const poolOracle = await sorobanHelper.loadPoolOracle(fillerUnwind.poolId);
+        const filler_user = await sorobanHelper.loadUser(fillerUnwind.poolId, filler_pubkey);
+        const filler_tokens = [...new Set([poolConfig.primaryAsset, ...pool.metadata.reserveList])];
+        const filler_balances = await getFillerAvailableBalances(filler_tokens, sorobanHelper);
 
-    // notify slack if the filler has any remaining liabilities
-    if (filler_user.positions.liabilities.size > 0) {
-      const logMessage =
-        `Filler has liabilities that cannot be removed\n` +
-        `Filler: ${fillerUnwind.filler.name}\n` +
-        `Pool: ${fillerUnwind.poolId}\n` +
-        `Positions: ${stringify(filler_user.positions, 2)}`;
-      logger.info(logMessage);
-      await sendNotification(logMessage);
-      return true;
-    }
+        // Unwind the filler one step at a time. If the filler is not unwound, place another `FillerUnwind` event on the submission queue.
+        // To unwind the filler, the following actions will be taken in order:
+        // 1. Unwind the filler's pool position by paying off all liabilities with current balances and withdrawing all possible collateral,
+        //    down to either the min_collateral or min_health_factor.
+        // TODO: Add trading functionality for 2, 3
+        // 2. If no positions can be modified, and the filler still has outstanding liabilities, attempt to purchase the liability tokens
+        //    with USDC.
+        // 3. If there are no liabilities, attempt to sell un-needed tokens for USDC
+        // 4. If this case is reached, stop sending unwind events for the filler.
 
-    logger.info(`Filler has no positions to manage, stopping unwind events.`);
+        // 1
+        let requests = managePositions(
+          poolConfig,
+          pool,
+          poolOracle,
+          filler_user.positions,
+          filler_balances
+        );
+        if (requests.length > 0) {
+          logger.info('Unwind found positions to manage', requests);
+          // some positions to manage - submit the transaction
+          const pool = new PoolContractV2(fillerUnwind.poolId);
+          const result = await sorobanHelper.submitTransaction(
+            pool.submit({
+              from: filler_pubkey,
+              spender: filler_pubkey,
+              to: filler_pubkey,
+              requests: requests,
+            }),
+            APP_CONFIG.fillerKeypair
+          );
+          logger.info(
+            `Successful unwind for filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
+              `Pool: ${fillerUnwind.poolId}\n` +
+              `Ledger: ${result.ledger}\n` +
+              `Hash: ${result.txHash}`
+          );
+          this.addSubmission(
+            {
+              type: BidderSubmissionType.UNWIND,
+              poolId: fillerUnwind.poolId,
+              filledAuction: fillerUnwind.filledAuction,
+            },
+            2
+          );
+          return true;
+        }
+
+        // notify slack if the filler has any remaining liabilities
+        if (filler_user.positions.liabilities.size > 0) {
+          const logMessage =
+            `Filler has liabilities that cannot be removed\n` +
+            `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
+            `Pool: ${fillerUnwind.poolId}\n` +
+            `Positions: ${stringify(filler_user.positions, 2)}`;
+          logger.info(logMessage);
+          await sendNotification(logMessage);
+          return true;
+        }
+
+        logger.info(`Filler has no positions to manage, stopping unwind events.`);
+        break;
+      }
+      default:
+        logger.error(`Invalid auction for unwind: ${stringify(fillerUnwind.filledAuction)}`);
+        return true;
+    }
     return true;
   }
 
-  async submitAddAllowance(
-    sorobanHelper: SorobanHelper,
-    allowance: AddAllowance
-  ): Promise<boolean> {
-    try {
-      const allowanceData = await sorobanHelper.loadAllowance(
-        allowance.assetId,
-        allowance.filler.keypair.publicKey(),
-        allowance.spender
-      );
-      if (
-        allowanceData.amount < BigInt(100_000e7) ||
-        allowanceData.expiration_ledger < allowance.currLedger + 17368 * 7
-      ) {
-        const assetContract = new Contract(allowance.assetId);
-        const op = assetContract
-          .call(
-            'approve',
-            ...[
-              Address.fromString(allowance.filler.keypair.publicKey()).toScVal(),
-              Address.fromString(allowance.spender).toScVal(),
-              nativeToScVal(BigInt('18446744073709551615'), { type: 'i128' }),
-              nativeToScVal(allowance.currLedger + 17368 * 30 * 5, { type: 'u32' }),
-            ]
-          )
-          .toXDR('base64');
-        await sorobanHelper.submitTransaction(op, allowance.filler.keypair);
-
-        const logMessage =
-          `Successfully updated allowance\n` +
-          `Filler: ${allowance.filler.name}\n` +
-          `Spender: ${allowance.spender}\n` +
-          `Asset: ${allowance.assetId}\n`;
-        logger.info(logMessage);
-        return true; // TODO: Check for error in response
-      }
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
   async onDrop(submission: BidderSubmission): Promise<void> {
-    let logMessage: string;
+    let logMessage: string = '';
     switch (submission.type) {
       case BidderSubmissionType.BID:
         logMessage =
@@ -355,21 +335,13 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           `User: ${submission.auctionEntry.user_id}\n` +
           `Start Block: ${submission.auctionEntry.start_block}\n` +
           `Fill Block: ${submission.auctionEntry.fill_block}\n` +
-          `Filler: ${submission.filler.name}\n`;
+          `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n`;
         break;
       case BidderSubmissionType.UNWIND:
         logMessage =
           `Dropped filler unwind\n` +
-          `Filler: ${submission.filler.name}\n` +
+          `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
           `Pool: ${submission.poolId}`;
-        break;
-      case BidderSubmissionType.ADD_ALLOWANCE:
-        logMessage =
-          `Dropped allowance check\n` +
-          `Filler: ${submission.filler.name}\n` +
-          `Spender: ${submission.spender}\n` +
-          `Asset: ${submission.assetId}\n` +
-          `Ledger: ${submission.currLedger}`;
         break;
     }
     logger.error(logMessage);

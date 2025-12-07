@@ -1,10 +1,5 @@
 import { calculateAuctionFill } from './auction.js';
-import {
-  AddAllowance,
-  AuctionBid,
-  BidderSubmissionType,
-  BidderSubmitter,
-} from './bidder_submitter.js';
+import { AuctionBid, BidderSubmissionType, BidderSubmitter } from './bidder_submitter.js';
 import { AppEvent, EventType } from './events.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionType } from './utils/db.js';
@@ -40,36 +35,28 @@ export class BidderHandler {
 
           for (let auctionEntry of auctions) {
             try {
-              const filler = APP_CONFIG.fillers.find(
-                (f) => f.keypair.publicKey() === auctionEntry.filler
-              );
-              if (filler === undefined) {
-                logger.error(`Filler not found for auction: ${stringify(auctionEntry)}`);
-                continue;
-              }
-
               if (this.submissionQueue.containsAuction(auctionEntry)) {
                 // auction already being bid on
                 continue;
               }
 
+              const poolConfig = APP_CONFIG.pools.find(
+                (p) => p.poolAddress === auctionEntry.pool_id
+              );
+              if (!poolConfig) {
+                logger.error(
+                  `Pool config not found for auction entry: ${stringify(auctionEntry)}. Deleting auction: ${stringify(auctionEntry)}`
+                );
+                this.db.deleteAuctionEntry(
+                  auctionEntry.pool_id,
+                  auctionEntry.user_id,
+                  auctionEntry.auction_type
+                );
+                continue;
+              }
+
               const ledgersToFill = auctionEntry.fill_block - nextLedger;
               if (auctionEntry.fill_block === 0 || ledgersToFill <= 5 || ledgersToFill % 10 === 0) {
-                // Check if the filler has an active allowance for backstop token
-                if (
-                  auctionEntry.auction_type === AuctionType.Interest &&
-                  auctionEntry.fill_block === 0
-                ) {
-                  let allowanceCheck: AddAllowance = {
-                    type: BidderSubmissionType.ADD_ALLOWANCE,
-                    filler: filler,
-                    assetId: APP_CONFIG.backstopTokenAddress,
-                    spender: APP_CONFIG.backstopAddress,
-                    currLedger: appEvent.ledger,
-                  };
-                  this.submissionQueue.addSubmission(allowanceCheck, 4);
-                }
-
                 // recalculate the auction
                 const auction = await this.sorobanHelper.loadAuction(
                   auctionEntry.pool_id,
@@ -88,8 +75,7 @@ export class BidderHandler {
                   continue;
                 }
                 const fill = await calculateAuctionFill(
-                  auctionEntry.pool_id,
-                  filler,
+                  poolConfig,
                   auction,
                   nextLedger,
                   this.sorobanHelper,
@@ -97,7 +83,7 @@ export class BidderHandler {
                 );
                 const logMessage =
                   `Auction Calculation\n` +
-                  `Filler: ${filler.name}\n` +
+                  `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
                   `Type: ${AuctionType[auction.type]}\n` +
                   `Pool: ${auctionEntry.pool_id}\n` +
                   `User: ${auction.user}\n` +
@@ -114,7 +100,6 @@ export class BidderHandler {
               if (auctionEntry.fill_block <= nextLedger) {
                 let submission: AuctionBid = {
                   type: BidderSubmissionType.BID,
-                  filler: filler,
                   auctionEntry: auctionEntry,
                 };
                 this.submissionQueue.addSubmission(submission, 10);

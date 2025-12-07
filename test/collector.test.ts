@@ -1,4 +1,5 @@
 import { createFilter } from '../src/collector';
+import { PoolConfig } from '../src/utils/config';
 
 describe('createFilter', () => {
   it('should return an empty array when no pool ids are provided', () => {
@@ -8,7 +9,7 @@ describe('createFilter', () => {
   });
 
   it('should create a single filter with one contract ID when one pool config is provided', () => {
-    const poolConfigs: string[] = ['pool1'];
+    const poolConfigs: PoolConfig[] = [{ poolAddress: 'pool1' } as PoolConfig];
 
     const expected = [
       {
@@ -22,7 +23,13 @@ describe('createFilter', () => {
   });
 
   it('should create a single filter when pool configs are less than or equal to 5', () => {
-    const poolConfigs: string[] = ['pool1', 'pool2', 'pool3', 'pool4', 'pool5'];
+    const poolConfigs: PoolConfig[] = [
+      { poolAddress: 'pool1' } as PoolConfig,
+      { poolAddress: 'pool2' } as PoolConfig,
+      { poolAddress: 'pool3' } as PoolConfig,
+      { poolAddress: 'pool4' } as PoolConfig,
+      { poolAddress: 'pool5' } as PoolConfig,
+    ];
 
     const expected = [
       {
@@ -36,7 +43,15 @@ describe('createFilter', () => {
   });
 
   it('should create multiple filters when pool configs are more than 5', () => {
-    const poolConfigs: string[] = ['pool1', 'pool2', 'pool3', 'pool4', 'pool5', 'pool6', 'pool7'];
+    const poolConfigs: PoolConfig[] = [
+      { poolAddress: 'pool1' } as PoolConfig,
+      { poolAddress: 'pool2' } as PoolConfig,
+      { poolAddress: 'pool3' } as PoolConfig,
+      { poolAddress: 'pool4' } as PoolConfig,
+      { poolAddress: 'pool5' } as PoolConfig,
+      { poolAddress: 'pool6' } as PoolConfig,
+      { poolAddress: 'pool7' } as PoolConfig,
+    ];
 
     const expected = [
       {
@@ -54,7 +69,10 @@ describe('createFilter', () => {
   });
 
   it('should create exactly three filters for 11 pool configs', () => {
-    const poolConfigs: string[] = Array.from({ length: 11 }, (_, i) => `pool${i + 1}`);
+    const poolConfigs: PoolConfig[] = Array.from(
+      { length: 11 },
+      (_, i) => ({ poolAddress: `pool${i + 1}` }) as PoolConfig
+    );
 
     const result = createFilter(poolConfigs);
 

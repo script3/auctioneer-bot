@@ -3,8 +3,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import {
   validateAppConfig,
   validateAuctionProfit,
-  validateFiller,
-  validatePoolFillerConfig,
+  validatePoolConfig,
   validatePriceSource,
 } from '../../src/utils/config';
 
@@ -41,22 +40,17 @@ describe('validateAppConfig', () => {
       backstopTokenAddress: 'token',
       usdcAddress: 'usdc',
       blndAddress: 'blnd',
-      keypair: Keypair.random().secret(),
-      pools: ['pool'],
-      fillers: [
+      interestFillerAddress: 'filler',
+      workerKeypair: Keypair.random().secret(),
+      fillerKeypair: Keypair.random().secret(),
+      pools: [
         {
-          name: 'filler',
-          keypair: Keypair.random().secret(),
+          poolAddress: 'pool',
           defaultProfitPct: 1,
-          supportedPools: [
-            {
-              poolAddress: 'pool',
-              primaryAsset: 'asset',
-              minPrimaryCollateral: '100',
-              minHealthFactor: 1,
-              forceFill: true,
-            },
-          ],
+          minHealthFactor: 1,
+          primaryAsset: 'asset',
+          minPrimaryCollateral: '100',
+          forceFill: true,
           supportedBid: ['bid'],
           supportedLot: ['lot'],
         },
@@ -84,22 +78,17 @@ describe('validateAppConfig', () => {
       backstopTokenAddress: 'token',
       usdcAddress: 'usdc',
       blndAddress: 'blnd',
-      keypair: Keypair.random().secret(),
-      pools: ['pool'],
-      fillers: [
+      interestFillerAddress: 'filler',
+      workerKeypair: Keypair.random().secret(),
+      fillerKeypair: Keypair.random().secret(),
+      pools: [
         {
-          name: 'filler',
-          keypair: Keypair.random().secret(),
+          poolAddress: 'pool',
           defaultProfitPct: 1,
-          supportedPools: [
-            {
-              poolAddress: 'pool',
-              primaryAsset: 'asset',
-              minPrimaryCollateral: '100',
-              minHealthFactor: 1,
-              forceFill: true,
-            },
-          ],
+          minHealthFactor: 1,
+          primaryAsset: 'asset',
+          minPrimaryCollateral: '100',
+          forceFill: true,
           supportedBid: ['bid'],
           supportedLot: ['lot'],
         },
@@ -120,22 +109,17 @@ describe('validateAppConfig', () => {
       backstopTokenAddress: 'token',
       usdcAddress: 'usdc',
       blndAddress: 'blnd',
-      keypair: Keypair.random().secret(),
-      pools: ['pool'],
-      fillers: [
+      interestFillerAddress: 'filler',
+      workerKeypair: Keypair.random().secret(),
+      fillerKeypair: Keypair.random().secret(),
+      pools: [
         {
-          name: 'filler',
-          keypair: Keypair.random().secret(),
+          poolAddress: 'pool',
           defaultProfitPct: 1,
-          supportedPools: [
-            {
-              poolAddress: 'pool',
-              primaryAsset: 'asset',
-              minPrimaryCollateral: '100',
-              minHealthFactor: 1,
-              forceFill: true,
-            },
-          ],
+          minHealthFactor: 1,
+          primaryAsset: 'asset',
+          minPrimaryCollateral: '100',
+          forceFill: true,
           supportedBid: ['bid'],
           supportedLot: ['lot'],
         },
@@ -150,55 +134,38 @@ describe('validateAppConfig', () => {
   });
 });
 
-describe('validateFiller', () => {
-  it('should return false for non-object filler', () => {
-    expect(validateFiller(null)).toBe(false);
-    expect(validateFiller('string')).toBe(false);
+describe('validatePoolConfig', () => {
+  it('should return false for non-object pool config', () => {
+    expect(validatePoolConfig(null)).toBe(false);
+    expect(validatePoolConfig('string')).toBe(false);
   });
 
-  it('should return false for filler with missing or incorrect properties', () => {
-    const invalidFiller = {
-      name: 'filler',
-      keypair: 'secret',
-      defaultProfitPct: 1,
-      supportedPools: [
-        {
-          poolAddress: 'pool',
-          primaryAsset: 'asset',
-          minPrimaryCollateral: '100',
-          minHealthFactor: 1,
-          forceFill: true,
-        },
-      ],
+  it('should return false for pool config with missing or incorrect properties', () => {
+    const invalidPoolConfig = {
+      poolAddress: 'pool',
+      defaultProfitPct: '1', // Invalid type
+      minHealthFactor: 1,
+      primaryAsset: 'asset',
+      minPrimaryCollateral: '100',
       forceFill: true,
       supportedBid: ['bid'],
-      supportedLot: 123, // Invalid type
+      supportedLot: ['lot'],
     };
-    expect(validateFiller(invalidFiller)).toBe(false);
+    expect(validatePoolConfig(invalidPoolConfig)).toBe(false);
   });
 
   it('should return true for valid filler', () => {
-    const validFiller = {
-      name: 'filler',
-      keypair: Keypair.random().secret(),
+    const validPoolConfig = {
+      poolAddress: 'pool',
       defaultProfitPct: 1,
       minHealthFactor: 1,
       primaryAsset: 'asset',
       minPrimaryCollateral: '100',
       forceFill: true,
-      supportedPools: [
-        {
-          poolAddress: 'pool',
-          primaryAsset: 'asset',
-          minPrimaryCollateral: '100',
-          minHealthFactor: 1,
-          forceFill: true,
-        },
-      ],
       supportedBid: ['bid'],
       supportedLot: ['lot'],
     };
-    expect(validateFiller(validFiller)).toBe(true);
+    expect(validatePoolConfig(validPoolConfig)).toBe(true);
   });
 });
 
@@ -271,34 +238,5 @@ describe('validateAuctionProfit', () => {
       supportedLot: ['asset2'],
     };
     expect(validateAuctionProfit(validProfits)).toBe(true);
-  });
-});
-
-describe('validatePoolConfig', () => {
-  it('should return false for non-object config', () => {
-    expect(validateAppConfig(null)).toBe(false);
-    expect(validateAppConfig('string')).toBe(false);
-  });
-
-  it('should return false for config with missing or incorrect properties', () => {
-    const invalidConfig = {
-      poolAddress: 'pool',
-      primaryAsset: 'asset',
-      minPrimaryCollateral: 100, // Invalid type
-      minHealthFactor: 1,
-      forceFill: true,
-    };
-    expect(validatePoolFillerConfig(invalidConfig)).toBe(false);
-  });
-
-  it('should return true for valid config', () => {
-    const validConfig = {
-      poolAddress: 'pool',
-      primaryAsset: 'asset',
-      minPrimaryCollateral: '100',
-      minHealthFactor: 1,
-      forceFill: true,
-    };
-    expect(validatePoolFillerConfig(validConfig)).toBe(true);
   });
 });

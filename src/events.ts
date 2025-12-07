@@ -1,6 +1,6 @@
 import { PoolV2Event } from '@blend-capital/blend-sdk';
 export enum EventType {
-  VALIDATE_POOLS = 'validate_pools',
+  VALIDATE = 'validate',
   LEDGER = 'ledger',
   PRICE_UPDATE = 'price_update',
   ORACLE_SCAN = 'oracle_scan',
@@ -14,7 +14,6 @@ export enum EventType {
 // ********* Shared **********
 
 export type AppEvent =
-  | ValidatePoolsEvent
   | LedgerEvent
   | PriceUpdateEvent
   | OracleScanEvent
@@ -50,9 +49,8 @@ export interface PoolEventEvent extends BaseEvent {
 
 // ********** Work Queue Only **********
 
-export interface ValidatePoolsEvent extends BaseEvent {
-  type: EventType.VALIDATE_POOLS;
-  pools: string[];
+export interface ValidateEvent extends BaseEvent {
+  type: EventType.VALIDATE;
 }
 
 /**

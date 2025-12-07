@@ -17,7 +17,7 @@ import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
 import { Api } from '@stellar/stellar-sdk/rpc';
-import { APP_CONFIG } from './utils/config.js';
+import { APP_CONFIG, PoolConfig } from './utils/config.js';
 
 let startup_ledger = 0;
 
@@ -110,11 +110,15 @@ export async function runCollector(
       statusEntry.latest_ledger === 0 ? latestLedger : statusEntry.latest_ledger + 1;
     // if we are too far behind, start from 17270 ledgers ago (default max ledger history is 17280)
     start_ledger = Math.max(start_ledger, latestLedger - 17270);
+    if (start_ledger != latestLedger - 1) {
+      logger.info(`Missing ledgers detected. Processing from ${start_ledger} to ${latestLedger}`);
+    }
     let events: rpc.Api.RawGetEventsResponse;
     const filters = createFilter(APP_CONFIG.pools);
     try {
       events = await stellarRpc._getEvents({
         startLedger: start_ledger,
+        endLedger: latestLedger + 1,
         filters: filters,
         limit: 100,
       });
@@ -127,6 +131,7 @@ export async function runCollector(
         );
         events = await stellarRpc._getEvents({
           startLedger: latestLedger,
+          endLedger: latestLedger + 1,
           filters: filters,
           limit: 100,
         });
@@ -166,12 +171,14 @@ export async function runCollector(
   }
 }
 
-export function createFilter(pools: string[]) {
+export function createFilter(pools: PoolConfig[]) {
   let filter: Api.EventFilter[] = [];
-  for (let i = 0; i < pools.length; i += 5) {
+
+  let poolIds = pools.map((p) => p.poolAddress);
+  for (let i = 0; i < poolIds.length; i += 5) {
     filter.push({
       type: 'contract',
-      contractIds: pools.slice(i, i + 5),
+      contractIds: poolIds.slice(i, i + 5),
     });
   }
   return filter;

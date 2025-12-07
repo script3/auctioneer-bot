@@ -1,19 +1,14 @@
 import { rpc } from '@stellar/stellar-sdk';
 import { fork } from 'child_process';
 import { runCollector } from './collector.js';
-import {
-  EventType,
-  OracleScanEvent,
-  PriceUpdateEvent,
-  UserRefreshEvent,
-  ValidatePoolsEvent,
-} from './events.js';
+import { EventType, OracleScanEvent, PriceUpdateEvent, UserRefreshEvent } from './events.js';
 import { PoolEventHandler } from './pool_event_handler.js';
 import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { sendEvent } from './utils/messages.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
+import { validateBot } from './validation.js';
 
 async function main() {
   // spawn child processes
@@ -80,13 +75,11 @@ async function main() {
 
   console.log('Auctioneer started successfully.');
 
-  // validate pool configs on startup
-  const validatePoolsEvent: ValidatePoolsEvent = {
-    type: EventType.VALIDATE_POOLS,
-    timestamp: Date.now(),
-    pools: APP_CONFIG.pools,
-  };
-  sendEvent(worker, validatePoolsEvent);
+  console.log('Validating bot against rpc...');
+
+  await validateBot(new SorobanHelper());
+
+  console.log('Bot validation complete.');
 
   // update price on startup
   const priceEvent: PriceUpdateEvent = {
@@ -109,7 +102,8 @@ async function main() {
   };
   sendEvent(worker, userEvent);
 
-  collectorInterval = setInterval(async () => {
+  console.log('Collector polling for events...');
+  while (!shutdownExpected) {
     try {
       let sorobanHelper = new SorobanHelper();
       let poolEventHandler = new PoolEventHandler(db, sorobanHelper, worker);
@@ -117,8 +111,10 @@ async function main() {
     } catch (e: any) {
       logger.error(`Error in collector`, e);
     }
-  }, 1000);
-  console.log('Collector polling for events...');
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  console.log('Collector stopped!');
 }
 
 main().catch((error) => {
