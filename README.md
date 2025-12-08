@@ -39,6 +39,8 @@ This bot does not automatically unwind all positions it bids on. It is recommend
 
 Certain auctions cause your filler to take on liabilities, and if these assets are not cleared in a timely manner, could result in the filler also getting liquidated.
 
+To fill interest auctions, the bot must fill with a contract that implements the same interface as the [example interest filler contract](https://github.com/script3/interest-auction-filler). This is required to allow the bot to bid directly with USDC on interest auctions.
+
 ### Configuration
 
 For an example config file that is configured to interact with [Blend 2 mainnet protocol](https://docs.blend.capital/), please see [example.config.json](https://github.com/script3/auctioneer-bot/blob/main/example.config.json).
@@ -60,7 +62,7 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `backstopTokenAddress` | The address of the Blend backstop token contract. |
 | `usdcAddress` | The address of the USDC token contract. |
 | `blndAddress` | The address of the BLND token contract. |
-| `interestFillerAddress` | A contract address used to help fill interest auctions. |
+| `interestFillerAddress` | A contract address used to help fill interest auctions. Must implement the same interface as [this example](https://github.com/script3/interest-auction-filler). |
 | `workerKeypair` | The secret key for the bot's auction creating account. This should be different from the filler as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `fillerKeypair` | The securet key for the bot's auction filler account. This should be different from the worker as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `pools` | A list of pool configs that dictates what pools are monitored |
