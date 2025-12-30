@@ -134,6 +134,7 @@ export function validatePoolConfig(config: any): boolean {
     Array.isArray(config.supportedLot) &&
     config.supportedLot.every((item: any) => typeof item === 'string')
   ) {
+    config.minPrimaryCollateral = BigInt(config.minPrimaryCollateral);
     return true;
   }
   console.log('Invalid pool config', config);
