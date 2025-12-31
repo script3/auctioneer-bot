@@ -132,6 +132,44 @@ describe('validateAppConfig', () => {
     };
     expect(validateAppConfig(validConfig)).toBe(true);
   });
+
+  it('should validate notification level', () => {
+    let config = {
+      name: 'App',
+      rpcURL: 'http://localhost',
+      networkPassphrase: 'Test',
+      backstopAddress: 'backstop',
+      backstopTokenAddress: 'token',
+      usdcAddress: 'usdc',
+      blndAddress: 'blnd',
+      interestFillerAddress: 'filler',
+      workerKeypair: Keypair.random().secret(),
+      fillerKeypair: Keypair.random().secret(),
+      pools: [
+        {
+          poolAddress: 'pool',
+          defaultProfitPct: 1,
+          minHealthFactor: 1,
+          primaryAsset: 'asset',
+          minPrimaryCollateral: '100',
+          forceFill: true,
+          supportedBid: ['bid'],
+          supportedLot: ['lot'],
+        },
+      ],
+      priceSources: [{ assetId: 'asset', type: 'binance', symbol: 'symbol' }],
+      slackWebhook: 'http://webhook',
+      horizonURL: 'http://horizon',
+      notificationLevel: 'medium',
+    };
+    expect(validateAppConfig(config)).toBe(false);
+
+    config.notificationLevel = 1 as any;
+    expect(validateAppConfig(config)).toBe(false);
+
+    config.notificationLevel = 'low';
+    expect(validateAppConfig(config)).toBe(true);
+  });
 });
 
 describe('validatePoolConfig', () => {

@@ -66,8 +66,9 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `workerKeypair` | The secret key for the bot's auction creating account. This should be different from the filler as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `fillerKeypair` | The securet key for the bot's auction filler account. This should be different from the worker as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `pools` | A list of pool configs that dictates what pools are monitored |
+| `notificationLevel` | (Default - `med`) The severity level where notifications are sent to either the console or a webhook, if present. Can be one of `low`, `med`, or `high`. High notifications includes dropped actions, bad debt auctions, and critical errors. Med adds all successful auction fills, liquidation auctions, and retried errors. Low adds additional info notifications and interest auctions. | 
 | `priceSources` | (Optional) A list of assets that will have prices sourced from exchanges instead of the pool oracle. |
-| `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions.
+| `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions. |
 | `slackWebhook` | (Optional) A slack webhook URL to post updates to (https://hooks.slack.com/services/). Leave undefined if no webhooks are required. |
 | `discordWebhook` | (Optional) A Discord webhook URL to post updates to. Leave undefined if no webhooks are required. |
 

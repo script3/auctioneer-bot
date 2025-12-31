@@ -3,10 +3,13 @@ import { APP_CONFIG } from './utils/config.js';
 import { AuctionType } from './utils/db.js';
 import { serializeError, stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
-import { sendNotification } from './utils/notifier.js';
+import {
+  getNotificationLevelForAuction,
+  sendNotification,
+  NotificationLevel,
+} from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
-import { Address, Contract, nativeToScVal } from '@stellar/stellar-sdk';
 
 export type WorkSubmission = AuctionCreation | BadDebtTransfer;
 
@@ -90,7 +93,10 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `Lot: ${stringify(auction.lot)}\n`;
 
       logger.info(logMessage);
-      await sendNotification(logMessage);
+      await sendNotification(
+        logMessage,
+        getNotificationLevelForAuction(auction.auctionType, false)
+      );
       return true;
     } catch (e: any) {
       const logMessage =
@@ -103,7 +109,10 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `Lot: ${stringify(auction.lot)}\n` +
         `Error: ${stringify(serializeError(e))}\n`;
       logger.error(logMessage);
-      await sendNotification(logMessage, true);
+      await sendNotification(
+        logMessage,
+        getNotificationLevelForAuction(auction.auctionType, false)
+      );
 
       // if pool throws a "LIQ_TOO_SMALL" or "LIQ_TOO_LARGE" error, adjust the fill percentage
       // by 1 percentage point before retrying.
@@ -133,17 +142,18 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         `Successfully transferred bad debt to backstop\n` +
         `Pool: ${badDebtTransfer.poolId}\n` +
         `User: ${badDebtTransfer.user}`;
-      await sendNotification(logMessage);
+      await sendNotification(logMessage, NotificationLevel.HIGH);
       logger.info(logMessage);
       return true;
     } catch (e: any) {
       const logMessage =
-        `Error transfering bad debt\n` +
+        `Error transferring bad debt\n` +
         `Pool: ${badDebtTransfer.poolId}\n` +
         `User: ${badDebtTransfer.user}` +
         `Error: ${stringify(serializeError(e))}\n`;
       logger.error(logMessage);
-      await sendNotification(logMessage, true);
+      // will log a high severity notification if it fails the retry limit
+      await sendNotification(logMessage, NotificationLevel.MED);
       return false;
     }
   }
@@ -167,6 +177,6 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
         break;
     }
     logger.error(logMessage);
-    await sendNotification(logMessage);
+    await sendNotification(logMessage, NotificationLevel.HIGH);
   }
 }

@@ -6,7 +6,11 @@ import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { serializeError, stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
-import { sendNotification } from './utils/notifier.js';
+import {
+  getNotificationLevelForAuction,
+  sendNotification,
+  NotificationLevel,
+} from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { SubmissionQueue } from './utils/submission_queue.js';
 import { InterestFillerContract } from './utils/interest_filler.js';
@@ -181,7 +185,10 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
           `Fill Percent ${fill.percent}\n` +
           `Ledger Fill Delta ${result.ledger - auctionBid.auctionEntry.start_block}\n` +
           `Hash ${result.txHash}\n`;
-        await sendNotification(logMessage);
+        await sendNotification(
+          logMessage,
+          getNotificationLevelForAuction(auctionBid.auctionEntry.auction_type, true)
+        );
         logger.info(logMessage);
         return true;
       } else {
@@ -203,7 +210,10 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         `User: ${auctionBid.auctionEntry.user_id}\n` +
         `Filler: ${APP_CONFIG.fillerKeypair.publicKey()}\n` +
         `Error: ${stringify(serializeError(e))}`;
-      await sendNotification(logMessage, true);
+      await sendNotification(
+        logMessage,
+        getNotificationLevelForAuction(auctionBid.auctionEntry.auction_type, false)
+      );
       logger.error(logMessage, e);
       return false;
     }
@@ -310,7 +320,7 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
             `Pool: ${fillerUnwind.poolId}\n` +
             `Positions: ${stringify(filler_user.positions, 2)}`;
           logger.info(logMessage);
-          await sendNotification(logMessage);
+          await sendNotification(logMessage, NotificationLevel.HIGH);
           return true;
         }
 
@@ -345,6 +355,6 @@ export class BidderSubmitter extends SubmissionQueue<BidderSubmission> {
         break;
     }
     logger.error(logMessage);
-    await sendNotification(logMessage);
+    await sendNotification(logMessage, NotificationLevel.HIGH);
   }
 }

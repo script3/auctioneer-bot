@@ -5,7 +5,7 @@ import { APP_CONFIG } from './utils/config.js';
 import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
-import { sendNotification } from './utils/notifier.js';
+import { getNotificationLevelForAuction, sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 
 export class BidderHandler {
@@ -90,7 +90,10 @@ export class BidderHandler {
                   `Fill: ${stringify(fill, 2)}\n` +
                   `Ledgers To Fill In: ${fill.block - nextLedger}\n`;
                 if (auctionEntry.fill_block === 0) {
-                  await sendNotification(logMessage);
+                  await sendNotification(
+                    logMessage,
+                    getNotificationLevelForAuction(auction.type, false)
+                  );
                 }
                 logger.info(logMessage);
                 auctionEntry.fill_block = fill.block;
