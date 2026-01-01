@@ -16,7 +16,6 @@ import {
   FillerUnwind,
 } from '../src/bidder_submitter';
 import { getFillerAvailableBalances, managePositions } from '../src/filler';
-import { APP_CONFIG } from '../src/utils/config';
 import { AuctioneerDatabase, AuctionEntry, AuctionType, FilledAuctionEntry } from '../src/utils/db';
 import { logger } from '../src/utils/logger';
 import { sendNotification } from '../src/utils/notifier';
@@ -442,7 +441,8 @@ describe('BidderSubmitter', () => {
       `Filler has liabilities that cannot be removed\n` +
         `Filler: ${fillerPubkey}\n` +
         `Pool: ${submission.poolId}\n` +
-        `Positions: ${stringify(fillerPositions, 2)}`
+        `Positions: ${stringify(fillerPositions, 2)}`,
+      'high'
     );
   });
 
@@ -551,7 +551,8 @@ describe('BidderSubmitter', () => {
         `User: ${submission.auctionEntry.user_id}\n` +
         `Start Block: ${submission.auctionEntry.start_block}\n` +
         `Fill Block: ${submission.auctionEntry.fill_block}\n` +
-        `Filler: ${fillerPubkey}\n`
+        `Filler: ${fillerPubkey}\n`,
+      'high'
     );
   });
 
@@ -579,7 +580,8 @@ describe('BidderSubmitter', () => {
       `Dropped filler unwind\n` + `Filler: ${fillerPubkey}\n` + `Pool: ${mockPool.id}`
     );
     expect(mockedSendSlackNotif).toHaveBeenCalledWith(
-      `Dropped filler unwind\n` + `Filler: ${fillerPubkey}\n` + `Pool: ${mockPool.id}`
+      `Dropped filler unwind\n` + `Filler: ${fillerPubkey}\n` + `Pool: ${mockPool.id}`,
+      'high'
     );
   });
 });

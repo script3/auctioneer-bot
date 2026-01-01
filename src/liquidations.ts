@@ -5,8 +5,7 @@ import { AuctioneerDatabase, AuctionType } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission, WorkSubmissionType } from './work_submitter.js';
-import { sendNotification } from './utils/notifier.js';
-import { stringify } from './utils/json.js';
+import { sendNotification, NotificationLevel } from './utils/notifier.js';
 
 /**
  * A representation of a position taking into account the oracle price.
@@ -257,7 +256,7 @@ export async function scanUsers(
     } catch (e) {
       const errorLog = `Error scanning for liquidations: ${poolConfig.poolAddress}\nError: ${e}`;
       logger.error(errorLog);
-      sendNotification(errorLog);
+      sendNotification(errorLog, NotificationLevel.MED);
     }
   }
   return submissions;

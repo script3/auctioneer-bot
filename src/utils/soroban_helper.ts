@@ -484,13 +484,13 @@ export class SorobanHelper {
     transaction: Transaction
   ): Promise<rpc.Api.GetSuccessfulTransactionResponse & { txHash: string }> {
     logger.info(`Submitting transaction: ${transaction.hash().toString('hex')}`);
-    let submitStartTime = Date.now();
     const stellarRpc = new rpc.Server(this.network.rpc, this.network.opts);
     let txResponse = await stellarRpc.sendTransaction(transaction);
     if (txResponse.status === 'TRY_AGAIN_LATER') {
       await new Promise((resolve) => setTimeout(resolve, 4000));
       txResponse = await stellarRpc.sendTransaction(transaction);
     }
+    let submitStartTime = Date.now();
 
     if (txResponse.status !== 'PENDING') {
       const error = parseError(txResponse);
@@ -500,7 +500,7 @@ export class SorobanHelper {
       throw error;
     }
     let get_tx_response = await stellarRpc.getTransaction(txResponse.hash);
-    while (get_tx_response.status === 'NOT_FOUND' && Date.now() - submitStartTime < 6000) {
+    while (get_tx_response.status === 'NOT_FOUND' && Date.now() - submitStartTime < 12000) {
       await new Promise((resolve) => setTimeout(resolve, 500));
       get_tx_response = await stellarRpc.getTransaction(txResponse.hash);
     }

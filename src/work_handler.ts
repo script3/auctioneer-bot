@@ -1,4 +1,3 @@
-import { FixedMath } from '@blend-capital/blend-sdk';
 import { AppEvent, EventType } from './events.js';
 import { checkUsersForLiquidationsAndBadDebt, scanUsers } from './liquidations.js';
 import { OracleHistory } from './oracle_history.js';
@@ -8,7 +7,7 @@ import { AuctioneerDatabase } from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent } from './utils/messages.js';
 import { setPrices } from './utils/prices.js';
-import { sendNotification } from './utils/notifier.js';
+import { sendNotification, NotificationLevel } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmitter } from './work_submitter.js';
 import { checkPoolForInterestAuction } from './interest.js';
@@ -141,7 +140,7 @@ export class WorkHandler {
                     `Pool: ${poolConfig.poolAddress}\n` +
                     `User: ${user.user_id}`;
                   logger.error(logMessage);
-                  await sendNotification(logMessage);
+                  await sendNotification(logMessage, NotificationLevel.MED);
                 }
 
                 const { estimate: poolUserEstimate, user: poolUser } =

@@ -1,6 +1,7 @@
 import { Keypair } from '@stellar/stellar-sdk';
 import { readFileSync } from 'fs';
 import { parse } from './json.js';
+import { NotificationLevel } from './notifier.js';
 
 export enum PriceSourceType {
   BINANCE = 'binance',
@@ -57,6 +58,7 @@ export interface AppConfig {
   fillerKeypair: Keypair;
   pools: PoolConfig[];
   // optional fields
+  notificationLevel: NotificationLevel | undefined;
   horizonURL: string | undefined;
   priceSources: PriceSource[] | undefined;
   profits: AuctionProfit[] | undefined;
@@ -94,6 +96,9 @@ export function validateAppConfig(config: any): boolean {
     typeof config.workerKeypair !== 'string' ||
     typeof config.fillerKeypair !== 'string' ||
     !Array.isArray(config.pools) ||
+    // default fields
+    (config.notificationLevel !== undefined &&
+      !Object.values(NotificationLevel).includes(config.notificationLevel)) ||
     // optional fields
     (config.horizonURL !== undefined && typeof config.horizonURL !== 'string') ||
     (config.priceSources !== undefined && !Array.isArray(config.priceSources)) ||

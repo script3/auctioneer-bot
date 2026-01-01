@@ -30,8 +30,6 @@ fi
 
 echo "Env file found."
 
-
-
 # Set up the database
 ./db/setup_db.sh -p $POOL_ID
 if [ $? -ne 0 ]; then

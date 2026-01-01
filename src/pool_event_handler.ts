@@ -8,7 +8,7 @@ import { AuctioneerDatabase, AuctionEntry, AuctionType } from './utils/db.js';
 import { stringify } from './utils/json.js';
 import { logger } from './utils/logger.js';
 import { deadletterEvent, sendEvent } from './utils/messages.js';
-import { sendNotification } from './utils/notifier.js';
+import { getNotificationLevelForAuction, sendNotification } from './utils/notifier.js';
 import { SorobanHelper } from './utils/soroban_helper.js';
 import { WorkSubmission } from './work_submitter.js';
 
@@ -100,7 +100,10 @@ export class PoolEventHandler {
             `Pool: ${pool.id}\n` +
             `User: ${poolEvent.event.user}\n` +
             `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
-          await sendNotification(logMessage);
+          await sendNotification(
+            logMessage,
+            getNotificationLevelForAuction(poolEvent.event.auctionType, false)
+          );
           logger.info(logMessage);
           return;
         }
@@ -122,7 +125,10 @@ export class PoolEventHandler {
           `Pool: ${pool.id}\n` +
           `User: ${poolEvent.event.user}\n` +
           `Auction Data: ${stringify(poolEvent.event.auctionData, 2)}\n`;
-        await sendNotification(logMessage);
+        await sendNotification(
+          logMessage,
+          getNotificationLevelForAuction(poolEvent.event.auctionType, false)
+        );
         logger.info(logMessage);
         break;
       }
@@ -138,7 +144,10 @@ export class PoolEventHandler {
             `Liquidation Auction Deleted\n` +
             `Pool: ${pool.id}\n` +
             `User: ${poolEvent.event.user}\n`;
-          await sendNotification(logMessage);
+          await sendNotification(
+            logMessage,
+            getNotificationLevelForAuction(AuctionType.Liquidation, false)
+          );
           logger.info(logMessage);
         }
         break;
@@ -153,7 +162,10 @@ export class PoolEventHandler {
           `User: ${poolEvent.event.user}\n` +
           `Fill Percent: ${poolEvent.event.fillAmount}\n` +
           `Tx Hash: ${poolEvent.event.txHash}\n`;
-        await sendNotification(logMessage);
+        await sendNotification(
+          logMessage,
+          getNotificationLevelForAuction(poolEvent.event.auctionType, false)
+        );
         logger.info(logMessage);
         if (poolEvent.event.fillAmount === BigInt(100)) {
           // auction was fully filled, remove from ongoing auctions
@@ -211,11 +223,14 @@ export class PoolEventHandler {
         let runResult = this.db.deleteAuctionEntry(pool.id, user, auctionType);
         if (runResult.changes !== 0) {
           const logMessage =
-            `Stale Auction Deleted\n` +
+            `Auction Deleted Before Fill\n` +
             `Type: ${AuctionType[auctionType]}\n` +
             `Pool: ${pool.id}\n` +
             `User: ${user}`;
-          await sendNotification(logMessage);
+          await sendNotification(
+            logMessage,
+            getNotificationLevelForAuction(poolEvent.event.auctionType, false)
+          );
           logger.info(logMessage);
         }
       }
