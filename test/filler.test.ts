@@ -11,6 +11,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import { canFillerBid, getFillerProfitPct, managePositions } from '../src/filler';
 import { AppConfig, AuctionProfit, PoolConfig } from '../src/utils/config';
 import { mockPool } from './helpers/mocks';
+import { APP_CONFIG } from '../src/utils/config';
 
 jest.mock('../src/utils/logger.js', () => ({
   logger: {
@@ -162,16 +163,25 @@ describe('filler', () => {
     });
   });
   describe('getFillerProfitPct', () => {
-    const poolConfig: PoolConfig = {
-      poolAddress: 'POOL1',
-      primaryAsset: 'ASSET1',
-      minPrimaryCollateral: FixedMath.toFixed(100, 7),
-      minHealthFactor: 1.5,
-      defaultProfitPct: 0.1,
-      forceFill: true,
-      supportedBid: ['ASSET0', 'ASSET1', 'ASSET2'],
-      supportedLot: ['ASSET1', 'ASSET2', 'ASSET3'],
-    };
+    let poolConfig: PoolConfig;
+
+    beforeEach(() => {
+      poolConfig = {
+        defaultProfitPct: 0.1,
+      } as PoolConfig;
+      (APP_CONFIG as any).profits = [
+        {
+          profitPct: 0.2,
+          supportedBid: ['ASSET0', 'ASSET1'],
+          supportedLot: ['ASSET1', 'ASSET3'],
+        },
+        {
+          profitPct: 0.3,
+          supportedBid: ['ASSET0', 'ASSET1'],
+          supportedLot: ['ASSET1', 'ASSET2'],
+        },
+      ];
+    });
 
     it('gets profitPct from profit config if available', () => {
       const auctionData: AuctionData = {
@@ -223,6 +233,58 @@ describe('filler', () => {
 
       const result = getFillerProfitPct(poolConfig, auctionData);
       expect(result).toBe(0.1);
+    });
+
+    it('returns first matched profit with wildcards in bid', () => {
+      (APP_CONFIG as any).profits = [
+        {
+          profitPct: 0.2,
+          supportedBid: ['ASSET0', 'ASSET1'],
+          supportedLot: ['ASSET1', 'ASSET3'],
+        },
+        {
+          profitPct: 0.3,
+          supportedBid: ['ASSET0', 'ASSET1', '*'],
+          supportedLot: ['ASSET1', 'ASSET2'],
+        },
+      ];
+      const auctionData: AuctionData = {
+        bid: new Map<string, bigint>([
+          ['ASSET1', 100n],
+          ['ASSET3', 200n],
+        ]),
+        lot: new Map<string, bigint>([['ASSET1', 100n]]),
+        block: 123,
+      };
+
+      const result = getFillerProfitPct(poolConfig, auctionData);
+      expect(result).toBe(0.3);
+    });
+
+    it('returns first matched profit with wildcards in lot', () => {
+      (APP_CONFIG as any).profits = [
+        {
+          profitPct: 0.2,
+          supportedBid: ['ASSET0', 'ASSET1'],
+          supportedLot: ['ASSET1', 'ASSET3'],
+        },
+        {
+          profitPct: 0.3,
+          supportedBid: ['ASSET0', 'ASSET1'],
+          supportedLot: ['ASSET1', 'ASSET2', '*'],
+        },
+      ];
+      const auctionData: AuctionData = {
+        bid: new Map<string, bigint>([['ASSET0', 100n]]),
+        lot: new Map<string, bigint>([
+          ['ASSET1', 100n],
+          ['ASSET0', 200n],
+        ]),
+        block: 123,
+      };
+
+      const result = getFillerProfitPct(poolConfig, auctionData);
+      expect(result).toBe(0.3);
     });
   });
   describe('managePositions', () => {

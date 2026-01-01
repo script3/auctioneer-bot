@@ -75,9 +75,9 @@ export function getFillerProfitPct(poolConfig: PoolConfig, auctionData: AuctionD
   let auctionProfits = APP_CONFIG.profits ?? [];
   for (const profit of auctionProfits) {
     if (
-      (!bidAssets.includes('*') &&
+      (!profit.supportedBid.includes('*') &&
         bidAssets.some((address) => !profit.supportedBid.includes(address))) ||
-      (!lotAssets.includes('*') &&
+      (!profit.supportedLot.includes('*') &&
         lotAssets.some((address) => !profit.supportedLot.includes(address)))
     ) {
       // either some bid asset or some lot asset is not in the profit's supported assets, skip
@@ -172,7 +172,10 @@ export function managePositions(
   // short circuit collateral withdrawal if close to min hf
   // this avoids very small amout of dust collateral being withdrawn and
   // causing unwind events to loop
-  if (poolConfig.minHealthFactor * 1.01 > effectiveCollateral / effectiveLiabilities) {
+  if (
+    effectiveLiabilities != 0 &&
+    poolConfig.minHealthFactor * 1.01 > effectiveCollateral / effectiveLiabilities
+  ) {
     return requests;
   }
 

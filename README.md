@@ -49,7 +49,7 @@ For an example config file that is configured to interact with [Blend 2 mainnet 
 
 **It is highly recommended to create a backup of the database file before attempting any migration.**
 
-For auctioneers that were started before multi-pool functionality a db migration will be neccessary. On startup of the updated auctioneer bot a command line argument will be required to be inputed with `-p` or `--prev-pool-id` followed by the pool id that the single pool auctioneer bot was using. The migration will update the database to the new schema and will populate the pool id column with the one provided.
+For auctioneers that were started before multi-pool functionality a db migration will be necessary. On startup of the updated auctioneer bot a command line argument will be required to be inputted with `-p` or `--prev-pool-id` followed by the pool id that the single pool auctioneer bot was using. The migration will update the database to the new schema and will populate the pool id column with the one provided.
 
 #### General Settings
 
@@ -66,7 +66,9 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `workerKeypair` | The secret key for the bot's auction creating account. This should be different from the filler as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `fillerKeypair` | The secret key for the bot's auction filler account. This should be different from the worker as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `pools` | A list of pool configs that dictates what pools are monitored |
-| `notificationLevel` | (Default - `med`) The severity level where notifications are sent to either the console or a webhook, if present. Can be one of `low`, `med`, or `high`. High notifications includes dropped actions, bad debt auctions, and critical errors. Med adds all successful auction fills, liquidation auctions, and retried errors. Low adds additional info notifications and interest auctions. | 
+| `notificationLevel` | (Default - `med`) The severity level where notifications are sent to either the console or a webhook, if present. Can be one of `low`, `med`, or `high`. High notifications includes dropped actions, bad debt auctions, and critical errors. Med adds all successful auction fills, liquidation auctions, and retried errors. Low adds additional info notifications and interest auctions. |
+| `baseFee` | (Default - `5000`) The minimum inclusion fee that will be specified for a normal transaction, otherwise feeStats p70. |
+| `highBaseFee` | (Default - `10000`) The minimum inclusion fee that will be specified for a high priority transaction, otherwise feeStats p90. This is considered any auction fill where the estimated profit is over 10 oracle units (almost always $10). |
 | `priceSources` | (Optional) A list of assets that will have prices sourced from exchanges instead of the pool oracle. |
 | `profits` | (Optional) A list of auction profits to define different profit percentages used for matching auctions. |
 | `slackWebhook` | (Optional) A slack webhook URL to post updates to (https://hooks.slack.com/services/). Leave undefined if no webhooks are required. |
@@ -121,7 +123,7 @@ Each DEX price source has the following fields:
 
 #### Profits
 
-The `profits` list defines target profit percentages based on the assets that make up the bid and lot of a given auction. This allows fillers to have flexability in the profit they target. The profit percentage chosen will be the first entry in the `profits` list that supports all bid and lot assets in the auction. If no profit entry is found, the `defaultProfitPct` value defined by the filler will be used.
+The `profits` list defines target profit percentages based on the assets that make up the bid and lot of a given auction. This allows fillers to have flexibility in the profit they target. The profit percentage chosen will be the first entry in the `profits` list that supports all bid and lot assets in the auction. If no profit entry is found, the `defaultProfitPct` value defined by the filler will be used.
 
 Each profit entry has the following fields:
 

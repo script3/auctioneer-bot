@@ -159,7 +159,6 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
   }
 
   async onDrop(submission: WorkSubmission): Promise<void> {
-    // TODO: Send slack alert for dropped submission
     let logMessage: string;
     switch (submission.type) {
       case WorkSubmissionType.AuctionCreation:
