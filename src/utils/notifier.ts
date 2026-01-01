@@ -118,7 +118,7 @@ export async function sendNotification(message: string, level: NotificationLevel
  * filled it.
  * @param auctionType - The auction type to determine the notification level for
  * @param isBotFill - Whether the bot successfully filled the auction
- * @returns
+ * @returns The notification level to use for the given auction type and fill status.
  */
 export function getNotificationLevelForAuction(
   auctionType: AuctionType,
