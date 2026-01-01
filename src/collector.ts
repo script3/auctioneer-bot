@@ -110,7 +110,7 @@ export async function runCollector(
       statusEntry.latest_ledger === 0 ? latestLedger : statusEntry.latest_ledger + 1;
     // if we are too far behind, start from 17270 ledgers ago (default max ledger history is 17280)
     start_ledger = Math.max(start_ledger, latestLedger - 17270);
-    if (start_ledger != latestLedger - 1) {
+    if (start_ledger < latestLedger) {
       logger.info(`Missing ledgers detected. Processing from ${start_ledger} to ${latestLedger}`);
     }
     let events: rpc.Api.RawGetEventsResponse;
