@@ -109,8 +109,25 @@ describe('sendNotification', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('should send all notifications when config level is undefined (defaults to MED)', async () => {
+    it('should default to MED when config is undefined', async () => {
       (APP_CONFIG as any).notificationLevel = undefined;
+
+      await sendNotification('High priority message', NotificationLevel.HIGH);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      mockFetch.mockClear();
+
+      await sendNotification('Medium priority message', NotificationLevel.MED);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      mockFetch.mockClear();
+
+      await sendNotification('Low priority', NotificationLevel.LOW);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should send all notifications when config level is LOW', async () => {
+      (APP_CONFIG as any).notificationLevel = NotificationLevel.LOW;
 
       await sendNotification('High priority', NotificationLevel.HIGH);
       expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -121,7 +138,7 @@ describe('sendNotification', () => {
 
       mockFetch.mockClear();
       await sendNotification('Low priority', NotificationLevel.LOW);
-      expect(mockFetch).not.toHaveBeenCalled(); // MED level filters out LOW
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 

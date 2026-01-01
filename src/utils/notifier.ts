@@ -82,7 +82,7 @@ export async function sendNotification(message: string, level: NotificationLevel
       }
       break;
     case NotificationLevel.MED:
-    default:
+    case undefined:
       if (level === NotificationLevel.LOW) {
         return;
       }
