@@ -64,7 +64,7 @@ For auctioneers that were started before multi-pool functionality a db migration
 | `blndAddress` | The address of the BLND token contract. |
 | `interestFillerAddress` | A contract address used to help fill interest auctions. Must implement the same interface as [this example](https://github.com/script3/interest-auction-filler). |
 | `workerKeypair` | The secret key for the bot's auction creating account. This should be different from the filler as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
-| `fillerKeypair` | The securet key for the bot's auction filler account. This should be different from the worker as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
+| `fillerKeypair` | The secret key for the bot's auction filler account. This should be different from the worker as auction creation and auction bidding can happen simultaneously. **Keep this secret and secure!** |
 | `pools` | A list of pool configs that dictates what pools are monitored |
 | `notificationLevel` | (Default - `med`) The severity level where notifications are sent to either the console or a webhook, if present. Can be one of `low`, `med`, or `high`. High notifications includes dropped actions, bad debt auctions, and critical errors. Med adds all successful auction fills, liquidation auctions, and retried errors. Low adds additional info notifications and interest auctions. | 
 | `priceSources` | (Optional) A list of assets that will have prices sourced from exchanges instead of the pool oracle. |
