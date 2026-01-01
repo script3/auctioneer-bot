@@ -149,7 +149,7 @@ export class WorkSubmitter extends SubmissionQueue<WorkSubmission> {
       const logMessage =
         `Error transferring bad debt\n` +
         `Pool: ${badDebtTransfer.poolId}\n` +
-        `User: ${badDebtTransfer.user}` +
+        `User: ${badDebtTransfer.user}\n` +
         `Error: ${stringify(serializeError(e))}\n`;
       logger.error(logMessage);
       // will log a high severity notification if it fails the retry limit
