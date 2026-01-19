@@ -127,7 +127,7 @@ export function getNotificationLevelForAuction(
   if (isBotFill) {
     switch (auctionType) {
       case 0: // Liquidation
-        return NotificationLevel.MED;
+        return NotificationLevel.HIGH;
       case 1: // Bad Debt
         return NotificationLevel.HIGH;
       case 2: // Interest
@@ -138,7 +138,7 @@ export function getNotificationLevelForAuction(
   } else {
     switch (auctionType) {
       case 0: // Liquidation
-        return NotificationLevel.LOW;
+        return NotificationLevel.MED;
       case 1: // Bad Debt
         return NotificationLevel.HIGH;
       case 2: // Interest
