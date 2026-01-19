@@ -320,9 +320,9 @@ describe('sendNotification', () => {
 
 describe('getNotificationLevelForAuction', () => {
   describe('when bot successfully fills auction', () => {
-    it('should return MED for Liquidation auctions', () => {
+    it('should return HIGH for Liquidation auctions', () => {
       const level = getNotificationLevelForAuction(AuctionType.Liquidation, true);
-      expect(level).toBe(NotificationLevel.MED);
+      expect(level).toBe(NotificationLevel.HIGH);
     });
 
     it('should return HIGH for BadDebt auctions', () => {
@@ -337,9 +337,9 @@ describe('getNotificationLevelForAuction', () => {
   });
 
   describe('when bot does NOT fill auction', () => {
-    it('should return LOW for Liquidation auctions', () => {
+    it('should return MED for Liquidation auctions', () => {
       const level = getNotificationLevelForAuction(AuctionType.Liquidation, false);
-      expect(level).toBe(NotificationLevel.LOW);
+      expect(level).toBe(NotificationLevel.MED);
     });
 
     it('should return HIGH for BadDebt auctions', () => {
@@ -355,9 +355,9 @@ describe('getNotificationLevelForAuction', () => {
 
   describe('edge cases', () => {
     it('should handle numeric auction type values correctly', () => {
-      expect(getNotificationLevelForAuction(0 as AuctionType, true)).toBe(NotificationLevel.MED);
-      expect(getNotificationLevelForAuction(1 as AuctionType, true)).toBe(NotificationLevel.HIGH);
-      expect(getNotificationLevelForAuction(2 as AuctionType, true)).toBe(NotificationLevel.MED);
+      expect(getNotificationLevelForAuction(0 as AuctionType, false)).toBe(NotificationLevel.MED);
+      expect(getNotificationLevelForAuction(1 as AuctionType, false)).toBe(NotificationLevel.HIGH);
+      expect(getNotificationLevelForAuction(2 as AuctionType, false)).toBe(NotificationLevel.LOW);
     });
 
     it('should default to MED for unknown auction types when bot fills', () => {
