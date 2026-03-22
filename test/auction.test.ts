@@ -84,6 +84,7 @@ describe('auctions', () => {
       supplyApy: 0,
       borrowApy: 0,
     };
+    mockPool.metadata.status = 1; // active
     mockedSorobanHelper.loadPool.mockResolvedValue(mockPool);
     mockedSorobanHelper.loadPoolOracle.mockResolvedValue(mockPoolOracle);
     mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
@@ -423,7 +424,7 @@ describe('auctions', () => {
       );
     });
 
-    it('calcs fill for liquidation auction and repays incoming liabilties and withdraws 0 CF collateral', async () => {
+    it('calcs fill for liquidation auction and repays incoming liabilities and withdraws 0 CF collateral', async () => {
       let user = Keypair.random().publicKey();
       let nextLedger = MOCK_LEDGER + 1;
       let auction = new Auction(user, AuctionType.Liquidation, {
@@ -437,6 +438,65 @@ describe('auctions', () => {
       });
       positionEstimate.totalEffectiveLiabilities = 0;
       positionEstimate.totalEffectiveCollateral = 1000;
+
+      mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+        user: {} as PoolUser,
+        estimate: positionEstimate,
+      });
+      mockedGetFillerProfitPct.mockReturnValue(0.1);
+      mockedGetFilledAvailableBalances.mockResolvedValue(
+        new Map<string, bigint>([
+          [USDC, FixedMath.toFixed(100)],
+          [XLM, FixedMath.toFixed(500)],
+        ])
+      );
+
+      let fill = await calculateAuctionFill(
+        poolConfig,
+        auction,
+        nextLedger,
+        mockedSorobanHelper,
+        db
+      );
+
+      let expectedRequests: Request[] = [
+        {
+          request_type: 6,
+          address: user,
+          amount: 100n,
+        },
+        {
+          request_type: 5,
+          address: XLM,
+          amount: 3003808157n,
+        },
+        {
+          request_type: 3,
+          address: AQUA,
+          amount: BigInt('9223372036854775807'),
+        },
+      ];
+      expect(fill.block).toEqual(MOCK_LEDGER + 191);
+      expect(fill.percent).toEqual(100);
+      expect(fill.requests).toEqual(expectedRequests);
+      expectRelApproxEqual(fill.lotValue, 32.7722, 0.005);
+      expectRelApproxEqual(fill.bidValue, 29.73769976, 0.005);
+    });
+
+    it('calcs fill for liquidation auction no existing positions and repays incoming liabilities and withdraws 0 CF collateral', async () => {
+      let user = Keypair.random().publicKey();
+      let nextLedger = MOCK_LEDGER + 1;
+      let auction = new Auction(user, AuctionType.Liquidation, {
+        lot: new Map<string, bigint>([
+          [USDC, FixedMath.toFixed(15.93)],
+          [EURC, FixedMath.toFixed(16.211)],
+          [AQUA, FixedMath.toFixed(750)],
+        ]),
+        bid: new Map<string, bigint>([[XLM, FixedMath.toFixed(300.21)]]),
+        block: MOCK_LEDGER,
+      });
+      positionEstimate.totalEffectiveLiabilities = 0;
+      positionEstimate.totalEffectiveCollateral = 0;
 
       mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
         user: {} as PoolUser,
@@ -542,6 +602,61 @@ describe('auctions', () => {
       expectRelApproxEqual(fill.bidValue, 8378.033243, 0.005);
     });
 
+    it('calcs fill for liquidation auction scales and does not add collateral when pool frozen', async () => {
+      let user = Keypair.random().publicKey();
+      let nextLedger = MOCK_LEDGER + 186;
+      let auction = new Auction(user, AuctionType.Liquidation, {
+        lot: new Map<string, bigint>([[XLM, FixedMath.toFixed(100000)]]),
+        bid: new Map<string, bigint>([
+          [USDC, FixedMath.toFixed(100)],
+          [EURC, FixedMath.toFixed(7500)],
+        ]),
+        block: MOCK_LEDGER,
+      });
+      positionEstimate.totalEffectiveLiabilities = 0;
+      positionEstimate.totalEffectiveCollateral = 1000;
+      mockPool.metadata.status = 4; // frozen
+
+      mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+        user: {} as PoolUser,
+        estimate: positionEstimate,
+      });
+      mockedGetFillerProfitPct.mockReturnValue(0.1);
+      mockedGetFilledAvailableBalances.mockResolvedValue(
+        new Map<string, bigint>([
+          [USDC, FixedMath.toFixed(5000)],
+          [XLM, FixedMath.toFixed(500)],
+        ])
+      );
+
+      let fill = await calculateAuctionFill(
+        poolConfig,
+        auction,
+        nextLedger,
+        mockedSorobanHelper,
+        db
+      );
+
+      let expectedRequests: Request[] = [
+        {
+          request_type: 6,
+          address: user,
+          amount: 19n,
+        },
+        // repays any incoming primary liabilities first
+        {
+          request_type: 5,
+          address: USDC,
+          amount: 19_1934786n,
+        },
+      ];
+      expect(fill.block).toEqual(MOCK_LEDGER + 187);
+      expect(fill.percent).toEqual(19);
+      expect(fill.requests).toEqual(expectedRequests);
+      expectRelApproxEqual(fill.lotValue, 1758.8892, 0.005);
+      expectRelApproxEqual(fill.bidValue, 1591.826316, 0.005);
+    });
+
     it('calcs fill for liquidation auction scales fill percent down', async () => {
       let user = Keypair.random().publicKey();
       let nextLedger = MOCK_LEDGER + 188;
@@ -622,6 +737,50 @@ describe('auctions', () => {
       expectRelApproxEqual(fill.bidValue, 4209.893874, 0.005);
     });
 
+    it('calcs fill for liquidation auction delays fill block if filler not healthy and pool frozen', async () => {
+      let user = Keypair.random().publicKey();
+      let nextLedger = MOCK_LEDGER + 123;
+      let auction = new Auction(user, AuctionType.Liquidation, {
+        lot: new Map<string, bigint>([[XLM, FixedMath.toFixed(100000)]]),
+        bid: new Map<string, bigint>([[XLM, FixedMath.toFixed(85000)]]),
+        block: MOCK_LEDGER,
+      });
+      positionEstimate.totalEffectiveLiabilities = 750;
+      positionEstimate.totalEffectiveCollateral = 1000;
+      mockPool.metadata.status = 4; // frozen
+
+      mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+        user: {} as PoolUser,
+        estimate: positionEstimate,
+      });
+      mockedGetFillerProfitPct.mockReturnValue(0.1);
+      // can't be used as pool is frozen
+      mockedGetFilledAvailableBalances.mockResolvedValue(
+        new Map<string, bigint>([[USDC, FixedMath.toFixed(5000)]])
+      );
+
+      let fill = await calculateAuctionFill(
+        poolConfig,
+        auction,
+        nextLedger,
+        mockedSorobanHelper,
+        db
+      );
+
+      let expectedRequests: Request[] = [
+        {
+          request_type: 6,
+          address: user,
+          amount: 100n,
+        },
+      ];
+      expect(fill.block).toEqual(MOCK_LEDGER + 300);
+      expect(fill.percent).toEqual(100);
+      expect(fill.requests).toEqual(expectedRequests);
+      expectRelApproxEqual(fill.lotValue, 9900.8679, 0.005);
+      expectRelApproxEqual(fill.bidValue, 4209.893874, 0.005);
+    });
+
     it('calcs fill for liquidation auction with repayment, additional collateral, and scaling minor', async () => {
       let user = Keypair.random().publicKey();
       let nextLedger = MOCK_LEDGER + 123;
@@ -632,6 +791,7 @@ describe('auctions', () => {
       });
       positionEstimate.totalEffectiveLiabilities = 0;
       positionEstimate.totalEffectiveCollateral = 1000;
+      mockPool.metadata.status = 3; // on-ice, can still supply
 
       mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
         user: {} as PoolUser,
@@ -786,6 +946,70 @@ describe('auctions', () => {
           request_type: 5,
           address: XLM,
           amount: FixedMath.toFixed(5000),
+        },
+        {
+          request_type: 5,
+          address: USDC,
+          amount: 5050912865n,
+        },
+      ];
+      expect(fill.block).toEqual(MOCK_LEDGER + 157);
+      expect(fill.percent).toEqual(100);
+      expect(fill.requests).toEqual(expectedRequests);
+      expectRelApproxEqual(fill.lotValue, 1648.5, 0.005);
+      expectRelApproxEqual(fill.bidValue, 1495.503014, 0.005);
+
+      expect(mockedGetFilledAvailableBalances).toHaveBeenCalledWith(
+        [XLM, USDC],
+        mockedSorobanHelper
+      );
+    });
+
+    it('calcs fill for bad debt auction with no collateral', async () => {
+      let user = Keypair.random().publicKey();
+      let nextLedger = MOCK_LEDGER + 1;
+      let auction = new Auction(user, AuctionType.BadDebt, {
+        lot: new Map<string, bigint>([[BACKSTOP_TOKEN, FixedMath.toFixed(4200)]]),
+        bid: new Map<string, bigint>([
+          [XLM, FixedMath.toFixed(10000)],
+          [USDC, FixedMath.toFixed(500)],
+        ]),
+        block: MOCK_LEDGER,
+      });
+      positionEstimate.totalEffectiveLiabilities = 0;
+      positionEstimate.totalEffectiveCollateral = 0;
+
+      mockedSorobanHelper.loadUserPositionEstimate.mockResolvedValue({
+        user: {} as PoolUser,
+        estimate: positionEstimate,
+      });
+      mockedGetFillerProfitPct.mockReturnValue(0.1);
+      mockedGetFilledAvailableBalances.mockResolvedValue(
+        new Map<string, bigint>([
+          [USDC, FixedMath.toFixed(4200)],
+          [XLM, FixedMath.toFixed(20000)],
+          [EURC, FixedMath.toFixed(10000)],
+        ])
+      );
+
+      let fill = await calculateAuctionFill(
+        poolConfig,
+        auction,
+        nextLedger,
+        mockedSorobanHelper,
+        db
+      );
+
+      let expectedRequests: Request[] = [
+        {
+          request_type: 7,
+          address: user,
+          amount: 100n,
+        },
+        {
+          request_type: 5,
+          address: XLM,
+          amount: 100056895500n,
         },
         {
           request_type: 5,
