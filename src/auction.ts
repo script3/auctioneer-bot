@@ -176,6 +176,7 @@ export async function calculateBlockFillAndPercent(
       );
 
       // attempt to repay any liabilities the filler has took on from the bids
+      let allBidLiabilitiesRepaid = true;
       for (const [assetId, amount] of loopScaledAuction.data.bid) {
         const balance = loopFillerBalances.get(assetId) ?? 0n;
         if (balance > 0n && amount > 0n) {
@@ -185,6 +186,9 @@ export async function calculateBlockFillAndPercent(
             // 100n prevents dust positions from being created, and is deducted from the repaid liability
             const amountAsUnderlying = reserve.toAssetFromDToken(amount) + 100n;
             const repaidLiability = amountAsUnderlying <= balance ? amountAsUnderlying : balance;
+            if (amountAsUnderlying > balance) {
+              allBidLiabilitiesRepaid = false;
+            }
             const effectiveLiability =
               FixedMath.toFloat(repaidLiability - 100n, reserve.config.decimals) *
               reserve.getLiabilityFactor() *
@@ -197,7 +201,11 @@ export async function calculateBlockFillAndPercent(
               address: assetId,
               amount: repaidLiability,
             });
+          } else {
+            allBidLiabilitiesRepaid = false;
           }
+        } else if (amount > 0n) {
+          allBidLiabilitiesRepaid = false;
         }
       }
 
@@ -215,12 +223,13 @@ export async function calculateBlockFillAndPercent(
         }
       }
 
-      if (limitToHF < 0) {
+      if (limitToHF < 0 && !allBidLiabilitiesRepaid) {
         // if we still are under the health factor, we need to try and add more of the fillers primary asset as collateral
         const primaryBalance = loopFillerBalances.get(poolConfig.primaryAsset) ?? 0n;
         const primaryReserve = pool.reserves.get(poolConfig.primaryAsset);
         const primaryOraclePrice = poolOracle.getPriceFloat(poolConfig.primaryAsset);
         if (
+          pool.metadata.status <= 3 && // don't add collateral if pool is frozen
           primaryReserve !== undefined &&
           primaryOraclePrice !== undefined &&
           primaryBalance > 0n
