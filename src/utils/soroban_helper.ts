@@ -154,7 +154,9 @@ export class SorobanHelper {
         return undefined;
       }
       let auctionData = PoolContract.parsers.getAuction(
-        ledgerData.entries[0].val.contractData().val().toXDR('base64')
+        xdr
+          .expectUnionVariant(ledgerData.entries[0].val, 'contractData')
+          .contractData.val.toXDR('base64')
       );
       return new Auction(userId, auctionType, auctionData);
     } catch (e) {
@@ -226,7 +228,7 @@ export class SorobanHelper {
         new xdr.LedgerKeyContractData({
           contract: Address.fromString(tokenId).toScAddress(),
           key: xdr.ScVal.scvVec(res),
-          durability: xdr.ContractDataDurability.temporary(),
+          durability: xdr.ContractDataDurability.temporary,
         })
       );
       const ledgerData = await stellarRpc.getLedgerEntries(ledgerKey);
@@ -237,7 +239,9 @@ export class SorobanHelper {
           amount: 0n,
         };
       }
-      let allowance = scValToNative(ledgerData.entries[0].val.contractData().val());
+      let allowance = scValToNative(
+        xdr.expectUnionVariant(ledgerData.entries[0].val, 'contractData').contractData.val
+      );
 
       if (
         allowance === undefined ||
@@ -441,7 +445,7 @@ export class SorobanHelper {
       .build();
 
     logger.info(
-      `Attempting to simulate and submit transaction ${tx.hash().toString('hex')}: ${tx.toXDR()}`
+      `Attempting to simulate and submit transaction ${Buffer.from(tx.hash()).toString('hex')}: ${tx.toXDR()}`
     );
     let simResult = await stellarRpc.simulateTransaction(tx);
 
@@ -483,7 +487,7 @@ export class SorobanHelper {
   private async sendTransaction(
     transaction: Transaction
   ): Promise<rpc.Api.GetSuccessfulTransactionResponse & { txHash: string }> {
-    logger.info(`Submitting transaction: ${transaction.hash().toString('hex')}`);
+    logger.info(`Submitting transaction: ${Buffer.from(transaction.hash()).toString('hex')}`);
     const stellarRpc = new rpc.Server(this.network.rpc, this.network.opts);
     let txResponse = await stellarRpc.sendTransaction(transaction);
     if (txResponse.status === 'TRY_AGAIN_LATER') {
