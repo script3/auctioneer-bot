@@ -26,9 +26,12 @@
   },
   "dependencies": {
     "@blend-capital/blend-sdk": "3.3.1",
-    "@stellar/stellar-sdk": "16.3.0",
+    "@stellar/stellar-sdk": "16.4.1",
     "better-sqlite3": "^12.4.1",
     "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0"
+  },
+  "overrides": {
+    "@stellar/stellar-sdk": "$@stellar/stellar-sdk"
   }
 }
