@@ -3,7 +3,7 @@
 // ESM-only packages pulled in (transitively) by @stellar/stellar-sdk / blend-sdk
 // whose CJS builds require() them. Jest runs the SDKs' CJS builds, so these must
 // be transpiled to CommonJS to be require()-able. Add new offenders here.
-const esmOnlyDeps = ['@noble/.+', 'uint8array-extras'];
+const esmOnlyDeps = ['@noble/.+', '@exodus/.+', 'uint8array-extras'];
 const esmOnlyPattern = `node_modules[/\\\\](?:${esmOnlyDeps.join('|')})[/\\\\].+\\.js$`;
 // e.g. @noble  ->  @noble  (drop the trailing "/.+" for the ignore whitelist)
 const esmOnlyScopes = esmOnlyDeps.map((d) => d.replace(/\/.*$/, '')).join('|');
